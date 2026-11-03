@@ -6,6 +6,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+const PNPM: &str = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
+
 #[derive(Parser, Debug)]
 #[command(name = "xtask", version, about = "RepoWill development automation")]
 struct Cli {
@@ -76,6 +78,8 @@ fn run_check() -> Result<()> {
     spdx_check()?;
     println!("== repository URL scan ==");
     url_check()?;
+    println!("== frontend lockfile policy ==");
+    run_in("apps/gui", PNPM, &["install", "--frozen-lockfile"])?;
     println!("== frontend licences (AT-459) ==");
     run_licenses()?;
     println!("check: OK");
@@ -91,7 +95,7 @@ fn run_test() -> Result<()> {
 
 fn run_gui_dev() -> Result<()> {
     println!("== gui-dev ==");
-    run("pnpm.cmd", &["--dir", "apps/gui", "tauri", "dev"])
+    run(PNPM, &["--dir", "apps/gui", "tauri", "dev"])
 }
 
 const ALLOWED_LICENSES: &[&str] = &[
@@ -121,7 +125,7 @@ const ALLOWED_LICENSES: &[&str] = &[
 ];
 
 fn run_licenses() -> Result<()> {
-    let output = Command::new("pnpm.cmd")
+    let output = Command::new(PNPM)
         .args(["--dir", "apps/gui", "licenses", "list", "--json"])
         .output()
         .context("pnpm licenses failed")?;
@@ -208,4 +212,27 @@ fn run_in(dir: &str, program: &str, args: &[&str]) -> Result<()> {
         anyhow::bail!("{program} {:?} failed with {status}", args);
     }
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spdx_check_passes_on_repo() {
+        spdx_check().expect("spdx");
+    }
+
+    #[test]
+    fn url_check_passes_on_repo() {
+        url_check().expect("url");
+    }
+
+    #[test]
+    fn pnpm_binary_is_platform_appropriate() {
+        if cfg!(windows) {
+            assert_eq!(PNPM, "pnpm.cmd");
+        } else {
+            assert_eq!(PNPM, "pnpm");
+        }
+    }
 }

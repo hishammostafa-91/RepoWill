@@ -1,3 +1,4 @@
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "repowill-testkit"
 version.workspace = true
@@ -9,3 +10,4 @@ description = "RepoWill test helpers."
 
 [dependencies]
 tempfile = "=3.27.0"
+
