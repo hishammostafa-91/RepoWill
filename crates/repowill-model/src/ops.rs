@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -548,3 +548,4 @@ pub struct OperationResponse {
     #[serde(default)]
     pub data: serde_json::Value,
 }
+

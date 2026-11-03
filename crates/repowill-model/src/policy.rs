@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -1659,3 +1659,8 @@ fn default_true() -> bool {
 fn default_mode_block() -> Mode {
     Mode::Block
 }
+
+
+
+
+
