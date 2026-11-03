@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "repowill-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "RepoWill CLI (`repowill`)."
+
+[[bin]]
+name = "repowill"
+path = "src/main.rs"
+
+[dependencies]
+repowill-core.workspace = true
+repowill-model.workspace = true
+clap.workspace = true
+clap_complete.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+assert_cmd = "=2.2.2"
+predicates = "=3.1.4"

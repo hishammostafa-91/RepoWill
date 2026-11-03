@@ -1,5 +1,7 @@
 # VERSIONS — pinned versions (WP-00.1, T-00.1.4)
 
+> Note: Rust toolchain pinned to installed 1.94.0 per owner decision on 2026-11-03 (resolved latest stable was 1.99.1). Do not update without owner instruction.
+
 Resolved 2026-11-03 per `12` §7: latest **stable** release, released **≥ 7 days ago**
 (cutoff: 2026-10-26/27; releases on 2026-10-27 after 00:00 UTC were treated as too new).
 Sources: crates.io API (`max_stable_version` + `/versions`), npm registry (`dist-tags.latest` +

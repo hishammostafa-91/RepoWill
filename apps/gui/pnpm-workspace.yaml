@@ -1,0 +1,9 @@
+packages:
+  - .
+minimumReleaseAge: 10080
+onlyBuiltDependencies:
+  - "@tauri-apps/cli"
+  - esbuild
+overrides:
+  rolldown: 1.2.15
+  tslib: 2.8.1

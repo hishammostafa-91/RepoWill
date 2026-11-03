@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "repowill-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "RepoWill core behaviour."
+
+[dependencies]
+repowill-model.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
