@@ -201,6 +201,9 @@ fn spdx_check_in(root: &std::path::Path) -> Result<()> {
         .args(["ls-files"])
         .output()
         .context("git ls-files failed")?;
+    if !output.status.success() {
+        anyhow::bail!("git ls-files failed");
+    }
     let stdout = String::from_utf8_lossy(&output.stdout);
     let exts = ["rs", "ts", "tsx", "css", "html"];
     for line in stdout.lines() {
@@ -231,6 +234,9 @@ fn url_check_in(root: &std::path::Path) -> Result<()> {
         .args(["ls-files"])
         .output()
         .context("git ls-files failed")?;
+    if !output.status.success() {
+        anyhow::bail!("git ls-files failed");
+    }
     let stdout = String::from_utf8_lossy(&output.stdout);
     let needle = concat!("hishammostafa-91", "/", "RepoWill");
     for line in stdout.lines() {
