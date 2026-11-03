@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: 0BSD
+[product]
+name = "RepoWill"
+author = "AfterLeads"
+email = "afterleadseg@gmail.com"
+license = "AGPL-3.0-or-later"
+
+[urls]
+repository = "https://github.com/hishammostafa-91/RepoWill.git"
+homepage = "https://github.com/hishammostafa-91/RepoWill"
+issues = "https://github.com/hishammostafa-91/RepoWill/issues"
+raw = "https://raw.githubusercontent.com/hishammostafa-91/RepoWill/main"
+release = "https://github.com/hishammostafa-91/RepoWill/releases"
