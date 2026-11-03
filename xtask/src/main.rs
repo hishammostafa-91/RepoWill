@@ -97,7 +97,7 @@ fn run_gui_dev() -> Result<()> {
     run(PNPM, &["--dir", "apps/gui", "tauri", "dev"])
 }
 
-const ALLOWED_LICENSES: &[&str] = &[
+const ALLOWED_LICENSE_ATOMS: &[&str] = &[
     "MIT",
     "MIT-0",
     "Apache-2.0",
@@ -117,11 +117,42 @@ const ALLOWED_LICENSES: &[&str] = &[
     "Python-2.0",
     "CDLA-Permissive-2.0",
     "CC-BY-4.0",
-    "AGPL-3.0-or-later",
-    "(MIT OR CC0-1.0)",
-    "MIT OR Apache-2.0",
-    "Apache-2.0 OR MIT",
 ];
+
+fn license_atoms(expr: &str) -> Vec<String> {
+    let mut parts = vec![expr.to_string()];
+    for sep in [" OR ", " or ", " AND ", " and "] {
+        parts = parts
+            .into_iter()
+            .flat_map(|p| p.split(sep).map(str::to_string).collect::<Vec<_>>())
+            .collect();
+    }
+    parts
+        .into_iter()
+        .map(|s| {
+            s.trim()
+                .trim_matches(|c| c == '(' || c == ')')
+                .trim()
+                .to_string()
+        })
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn license_violations(json: &serde_json::Value) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(obj) = json.as_object() {
+        for key in obj.keys() {
+            for atom in license_atoms(key) {
+                if !ALLOWED_LICENSE_ATOMS.contains(&atom.as_str()) {
+                    out.push(key.clone());
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
 
 fn run_licenses() -> Result<()> {
     let output = Command::new(PNPM)
@@ -137,12 +168,9 @@ fn run_licenses() -> Result<()> {
     }
     let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))
         .context("parse licenses json")?;
-    if let Some(obj) = json.as_object() {
-        for key in obj.keys() {
-            if !ALLOWED_LICENSES.contains(&key.as_str()) {
-                anyhow::bail!("disallowed frontend license: {}", key);
-            }
-        }
+    let violations = license_violations(&json);
+    if !violations.is_empty() {
+        anyhow::bail!("disallowed frontend licenses: {}", violations.join(", "));
     }
     println!("licenses: OK");
     Ok(())
@@ -242,6 +270,7 @@ fn run_in(dir: &str, program: &str, args: &[&str]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn spdx_check_passes_on_repo() {
@@ -260,5 +289,39 @@ mod tests {
         } else {
             assert_eq!(PNPM, "pnpm");
         }
+    }
+
+    #[test]
+    fn license_violations_empty_for_allowed() {
+        let j = json!({"MIT": [], "Apache-2.0": []});
+        assert!(license_violations(&j).is_empty());
+    }
+
+    #[test]
+    fn license_violations_catches_disallowed() {
+        let j = json!({"GPL-3.0-only": []});
+        let v = license_violations(&j);
+        assert_eq!(v, vec!["GPL-3.0-only".to_string()]);
+    }
+
+    #[test]
+    fn license_violations_accepts_composite_atoms() {
+        let j = json!({"MIT OR Apache-2.0": []});
+        assert!(license_violations(&j).is_empty());
+    }
+
+    #[test]
+    fn license_violations_rejects_reordered_unknown() {
+        let j = json!({"MIT OR GPL-3.0-only": []});
+        let v = license_violations(&j);
+        assert_eq!(v, vec!["MIT OR GPL-3.0-only".to_string()]);
+    }
+
+    #[test]
+    fn license_atoms_splits_or_and() {
+        assert_eq!(
+            license_atoms("MIT OR Apache-2.0"),
+            vec!["MIT", "Apache-2.0"]
+        );
     }
 }
