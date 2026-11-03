@@ -3,10 +3,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::fs;
-use std::path::Path;
 use std::process::Command;
-
-const PNPM: &str = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
 
 #[derive(Parser, Debug)]
 #[command(name = "xtask", version, about = "RepoWill development automation")]
@@ -28,6 +25,8 @@ enum CommandKind {
     /// List frontend licences (AT-459).
     Licenses,
 }
+
+const PNPM: &str = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -126,7 +125,8 @@ const ALLOWED_LICENSES: &[&str] = &[
 
 fn run_licenses() -> Result<()> {
     let output = Command::new(PNPM)
-        .args(["--dir", "apps/gui", "licenses", "list", "--json"])
+        .current_dir("apps/gui")
+        .args(["licenses", "list", "--json"])
         .output()
         .context("pnpm licenses failed")?;
     if !output.status.success() {
@@ -148,20 +148,38 @@ fn run_licenses() -> Result<()> {
     Ok(())
 }
 
-fn spdx_check() -> Result<()> {
+fn repo_root() -> Result<std::path::PathBuf> {
     let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .context("git rev-parse failed")?;
+    if !output.status.success() {
+        anyhow::bail!("not a git repository");
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(std::path::PathBuf::from(path))
+}
+
+fn spdx_check() -> Result<()> {
+    let root = repo_root()?;
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(&root)
         .args(["ls-files"])
         .output()
         .context("git ls-files failed")?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let exts = ["rs", "ts", "tsx", "css", "html"];
     for line in stdout.lines() {
-        let path = Path::new(line);
+        let path = root.join(line);
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         if !exts.contains(&ext) {
             continue;
         }
-        let content = fs::read_to_string(path).unwrap_or_default();
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) => anyhow::bail!("cannot read {}: {}", line, e),
+        };
         if !content.contains("SPDX-License-Identifier") {
             anyhow::bail!("missing SPDX header: {}", line);
         }
@@ -170,7 +188,10 @@ fn spdx_check() -> Result<()> {
 }
 
 fn url_check() -> Result<()> {
+    let root = repo_root()?;
     let output = Command::new("git")
+        .arg("-C")
+        .arg(&root)
         .args(["ls-files"])
         .output()
         .context("git ls-files failed")?;
@@ -180,7 +201,11 @@ fn url_check() -> Result<()> {
         if line == "assets/project.toml" {
             continue;
         }
-        let content = fs::read_to_string(line).unwrap_or_default();
+        let path = root.join(line);
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
         if content.contains(needle) {
             anyhow::bail!(
                 "repository URL literal found outside assets/project.toml: {}",
@@ -213,6 +238,7 @@ fn run_in(dir: &str, program: &str, args: &[&str]) -> Result<()> {
     }
     Ok(())
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

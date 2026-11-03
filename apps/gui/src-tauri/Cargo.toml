@@ -1,4 +1,4 @@
-﻿# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "repowill-gui"
 version = "0.1.0"
@@ -33,4 +33,3 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
-

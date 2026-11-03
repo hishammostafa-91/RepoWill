@@ -1,4 +1,4 @@
-﻿# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "repowill-core"
 version.workspace = true
@@ -12,4 +12,3 @@ description = "RepoWill core behaviour."
 repowill-model.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-
