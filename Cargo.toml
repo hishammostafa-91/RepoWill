@@ -21,7 +21,6 @@ edition = "2024"
 rust-version = "1.94.0"
 license = "AGPL-3.0-or-later"
 authors = ["AfterLeads <afterleadseg@gmail.com>"]
-repository = "https://github.com/hishammostafa-91/RepoWill.git"
 
 [workspace.dependencies]
 # Internal crates

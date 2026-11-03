@@ -32,12 +32,5 @@
     "vite": "8.3.5",
     "@tauri-apps/cli": "2.12.4",
     "@biomejs/biome": "2.6.3"
-  },
-  "pnpm": {
-    "minimumReleaseAge": 10080,
-    "onlyBuiltDependencies": [
-      "@tauri-apps/cli",
-      "esbuild"
-    ]
   }
 }

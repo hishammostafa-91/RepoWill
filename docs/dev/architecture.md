@@ -1,6 +1,6 @@
 # Architecture (dev)
 
-Crate map (see `02-ARCHITECTURE.md` in the private plan vault for the authoritative design):
+Crate map (public developer documentation):
 
 - `crates/repowill-model` — shared types and schemas.
 - `crates/repowill-core` — all behaviour (Operation API, policy engine, guards, gates).
