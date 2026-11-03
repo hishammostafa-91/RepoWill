@@ -150,6 +150,8 @@ fn license_violations(json: &serde_json::Value) -> Vec<String> {
                 }
             }
         }
+    } else {
+        out.push("<invalid-license-report>".to_string());
     }
     out
 }
@@ -189,10 +191,13 @@ fn repo_root() -> Result<std::path::PathBuf> {
 }
 
 fn spdx_check() -> Result<()> {
-    let root = repo_root()?;
+    spdx_check_in(&repo_root()?)
+}
+
+fn spdx_check_in(root: &std::path::Path) -> Result<()> {
     let output = Command::new("git")
         .arg("-C")
-        .arg(&root)
+        .arg(root)
         .args(["ls-files"])
         .output()
         .context("git ls-files failed")?;
@@ -216,10 +221,13 @@ fn spdx_check() -> Result<()> {
 }
 
 fn url_check() -> Result<()> {
-    let root = repo_root()?;
+    url_check_in(&repo_root()?)
+}
+
+fn url_check_in(root: &std::path::Path) -> Result<()> {
     let output = Command::new("git")
         .arg("-C")
-        .arg(&root)
+        .arg(root)
         .args(["ls-files"])
         .output()
         .context("git ls-files failed")?;
@@ -271,6 +279,9 @@ fn run_in(dir: &str, program: &str, args: &[&str]) -> Result<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::fs;
+    use std::process::Command;
+    use tempfile::tempdir;
 
     #[test]
     fn spdx_check_passes_on_repo() {
@@ -323,5 +334,51 @@ mod tests {
             license_atoms("MIT OR Apache-2.0"),
             vec!["MIT", "Apache-2.0"]
         );
+    }
+
+    #[test]
+    fn license_violations_fail_closed_on_non_object() {
+        let j = json!(["MIT"]);
+        let v = license_violations(&j);
+        assert!(!v.is_empty());
+    }
+
+    #[test]
+    fn spdx_check_fails_on_missing_header() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        Command::new("git")
+            .arg("init")
+            .current_dir(root)
+            .status()
+            .unwrap();
+        fs::write(root.join("bad.rs"), "fn main() {}").unwrap();
+        Command::new("git")
+            .args(["add", "bad.rs"])
+            .current_dir(root)
+            .status()
+            .unwrap();
+        let err = spdx_check_in(root).unwrap_err();
+        assert!(err.to_string().contains("missing SPDX header"));
+    }
+
+    #[test]
+    fn url_check_fails_on_rogue_url() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        Command::new("git")
+            .arg("init")
+            .current_dir(root)
+            .status()
+            .unwrap();
+        let needle = concat!("hishammostafa-91", "/", "RepoWill");
+        fs::write(root.join("bad.txt"), format!("see {}", needle)).unwrap();
+        Command::new("git")
+            .args(["add", "bad.txt"])
+            .current_dir(root)
+            .status()
+            .unwrap();
+        let err = url_check_in(root).unwrap_err();
+        assert!(err.to_string().contains("repository URL literal"));
     }
 }
