@@ -24,6 +24,8 @@ enum CommandKind {
     Verify,
     /// List frontend licences (AT-459).
     Licenses,
+    /// Generate JSON schema and bindings.
+    Gen,
 }
 
 const PNPM: &str = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
@@ -41,6 +43,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         CommandKind::Licenses => run_licenses(),
+        CommandKind::Gen => run_gen(),
     }
 }
 
@@ -89,6 +92,24 @@ fn run_test() -> Result<()> {
     println!("== cargo test ==");
     run("cargo", &["test", "--all", "--locked"])?;
     println!("test: OK");
+    Ok(())
+}
+
+fn run_gen() -> Result<()> {
+    println!("== gen schema ==");
+    std::fs::create_dir_all("schemas").context("create schemas dir")?;
+    let output = Command::new("cargo")
+        .args(["run", "-p", "repowill-model", "--example", "gen_schema"])
+        .output()
+        .context("cargo run gen_schema")?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "gen_schema failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    std::fs::write("schemas/policy.schema.json", &output.stdout).context("write schema")?;
+    println!("gen: OK");
     Ok(())
 }
 

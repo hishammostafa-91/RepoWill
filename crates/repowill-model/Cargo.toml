@@ -11,3 +11,6 @@ description = "RepoWill shared types and schemas."
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+schemars = "=1.2.3"
+toml = "=1.1.8"
+ts-rs = "=12.0.1"

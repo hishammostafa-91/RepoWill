@@ -1,0 +1,2161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Policy",
+  "type": "object",
+  "properties": {
+    "agents": {
+      "$ref": "#/$defs/Agents",
+      "default": {
+        "enabled": [
+          "opencode",
+          "claude-code",
+          "generic"
+        ],
+        "guard": {
+          "allow_read": [
+            "**/.env.example"
+          ],
+          "block_delete": true,
+          "block_destructive_git": true,
+          "block_hook_bypass": true,
+          "block_privilege": true,
+          "block_remote_exec": true,
+          "deny_read": [
+            "**/.env",
+            "**/.env.*",
+            "**/*.pem",
+            "**/*.key",
+            "**/id_rsa*",
+            "**/id_ed25519*"
+          ],
+          "outside_workspace": "deny",
+          "package_guard": true,
+          "protect_repowill": true,
+          "unknown_command": "allow"
+        },
+        "parallel": {
+          "mode": "worktrees"
+        },
+        "stop_check": {
+          "enabled": true,
+          "gate_tags": [
+            "fast"
+          ],
+          "max_feedback_lines": 40
+        }
+      }
+    },
+    "dependencies": {
+      "$ref": "#/$defs/Dependencies",
+      "default": {
+        "ecosystems": [
+          "auto"
+        ],
+        "enabled": true,
+        "exceptions": [],
+        "licenses": {
+          "allowed": [
+            "MIT",
+            "Apache-2.0",
+            "BSD-2-Clause",
+            "BSD-3-Clause",
+            "ISC",
+            "0BSD",
+            "Zlib",
+            "Unlicense",
+            "CC0-1.0",
+            "MPL-2.0",
+            "Unicode-3.0",
+            "BSL-1.0"
+          ],
+          "compat_hint": true,
+          "content_licenses": [
+            "CC-BY-4.0",
+            "OFL-1.1"
+          ],
+          "denied": [],
+          "include_dev": true,
+          "open_source_only": true,
+          "unknown": "block"
+        },
+        "network": {
+          "cache_ttl_hours": 24,
+          "mode": "online",
+          "on_unavailable": "warn"
+        },
+        "risk": {
+          "install_scripts": "warn",
+          "unmaintained_days": 730
+        },
+        "scope": "new-and-changed",
+        "sources": {
+          "allow_git": false,
+          "allow_path": true,
+          "allow_url": false,
+          "allowed_registries": [
+            "default"
+          ],
+          "require_lockfile": true
+        },
+        "versions": {
+          "allow_prerelease": false,
+          "applies_to": "direct",
+          "block_deprecated": true,
+          "block_yanked": true,
+          "min_release_age_days": 7,
+          "outdated_existing": "warn",
+          "outdated_grace_days": 30,
+          "require_latest_stable": true,
+          "tolerance": "exact"
+        },
+        "vulnerabilities": {
+          "block_at": "high",
+          "include_dev": true,
+          "unknown_severity": "warn",
+          "warn_at": "medium"
+        }
+      }
+    },
+    "docs": {
+      "$ref": "#/$defs/Docs",
+      "default": {
+        "changelog": {
+          "file": "",
+          "format": "",
+          "mode": "",
+          "require_for": []
+        },
+        "coupling": [],
+        "generated": [],
+        "not_needed_trailer": "Docs-Not-Needed",
+        "required": [
+          "README.md",
+          "LICENSE",
+          "CHANGELOG.md"
+        ],
+        "staleness_days": 180,
+        "staleness_key": "last_reviewed"
+      }
+    },
+    "engine": {
+      "$ref": "#/$defs/Engine",
+      "default": {
+        "cache_results": true,
+        "concurrency": 0,
+        "default_on_error": "block",
+        "default_timeout": "10m",
+        "require_clean_tree_for_commands": false
+      }
+    },
+    "extends": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "gates": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Gate"
+      }
+    },
+    "guards": {
+      "$ref": "#/$defs/Guards",
+      "default": {
+        "agent_guard": "block",
+        "branch_naming": "block",
+        "branch_origin": "block",
+        "delete_guard": "block",
+        "history_protection": "block",
+        "identity": "block",
+        "main_protection": "block",
+        "merge_guard": "block",
+        "policy_guard": "block",
+        "protected_paths": "block",
+        "push_guard": "block"
+      }
+    },
+    "identity": {
+      "$ref": "#/$defs/Identity",
+      "default": {
+        "allowed": [],
+        "check_committer": true,
+        "email": "",
+        "enforce": "block",
+        "name": "",
+        "signing": "off"
+      }
+    },
+    "lock": {
+      "$ref": "#/$defs/Lock",
+      "default": {
+        "keys": []
+      }
+    },
+    "min_repowill_version": {
+      "type": "string",
+      "default": "1.0.0"
+    },
+    "project": {
+      "$ref": "#/$defs/Project",
+      "default": {
+        "description": "",
+        "license": "",
+        "name": "",
+        "preset": "recommended",
+        "profile": "default",
+        "stacks": []
+      }
+    },
+    "protection": {
+      "$ref": "#/$defs/Protection",
+      "default": {
+        "delete": {
+          "allow_patterns": [
+            "**/*.log",
+            "**/tmp/**",
+            "dist/**",
+            "build/**",
+            "coverage/**",
+            "target/**",
+            "node_modules/**"
+          ],
+          "archive_branches": true,
+          "branches": "approval",
+          "files": "approval",
+          "recoverable": true,
+          "tags": "approval"
+        },
+        "integrity": {
+          "check_on": "every-hook",
+          "on_violation": "block"
+        },
+        "policy": {
+          "allow_local_weakening": false,
+          "require_trust_for_commands": true,
+          "weakening": "approval"
+        },
+        "protected_paths": [],
+        "snapshots": {
+          "before_risky_ops": true,
+          "enabled": true,
+          "include_untracked": true,
+          "interval_minutes": 10,
+          "max_count": 100,
+          "max_file_size_mb": 50,
+          "on_agent_session": true,
+          "retention_days": 14
+        }
+      }
+    },
+    "remote": {
+      "$ref": "#/$defs/Remote",
+      "default": {
+        "github": {
+          "ci_runs_on": "",
+          "ci_workflow": false,
+          "push_archive_tags": false,
+          "required_check": "",
+          "rulesets": ""
+        },
+        "owner": "",
+        "provider": "none",
+        "remote_name": "origin",
+        "repo": "",
+        "visibility": "public"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "waivers": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Waiver"
+      }
+    },
+    "workflow": {
+      "$ref": "#/$defs/Workflow",
+      "default": {
+        "allow_stacked": false,
+        "allowed_bases": [
+          "main"
+        ],
+        "bases_by_type": {},
+        "branch_from_tip": false,
+        "branch_naming": {
+          "exceptions": [],
+          "mode": "block",
+          "pattern": "",
+          "types": [
+            "feat",
+            "fix",
+            "docs",
+            "refactor",
+            "perf",
+            "test",
+            "build",
+            "ci",
+            "chore",
+            "hotfix",
+            "release",
+            "revert"
+          ]
+        },
+        "commits": {
+          "atomic": "standard",
+          "atomic_max_files": 20,
+          "atomic_max_lines": 500,
+          "atomic_single_scope": false,
+          "body_max_line": 100,
+          "convention": "conventional",
+          "custom_pattern": "",
+          "forbid_trailing_period": true,
+          "issue_pattern": "#\\d+",
+          "require_body_for": [],
+          "require_issue_ref": false,
+          "require_scope": false,
+          "required_trailers": [],
+          "scope_map": {},
+          "scopes": [],
+          "subject_lowercase_start": true,
+          "subject_max": 72,
+          "types": [
+            "feat",
+            "fix",
+            "docs",
+            "style",
+            "refactor",
+            "perf",
+            "test",
+            "build",
+            "ci",
+            "chore",
+            "revert"
+          ]
+        },
+        "integration_branch": "",
+        "main_branch": "main",
+        "max_commits_ahead": 50,
+        "merge": {
+          "after_merge": "keep",
+          "approval_expiry_hours": 24,
+          "approval_source": "local",
+          "location": "auto",
+          "message_template": "Merge branch '{branch}' into {target}",
+          "require_approval": true,
+          "run_gates_on_result": true,
+          "strategy": "no-ff",
+          "trailers": true,
+          "up_to_date": "trial-merge"
+        },
+        "model": "strict-mainline",
+        "protected_branches": [
+          "main"
+        ],
+        "push": {
+          "allow_force": "never",
+          "protected_direct": "after-local-merge",
+          "remote_deletions": "approval",
+          "verified_commits": "warn"
+        },
+        "stacked_patterns": [],
+        "stale_branch_days": 14,
+        "tags": {
+          "annotated": true,
+          "only_on": [
+            "main"
+          ],
+          "pattern": "^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+          "protected": true
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version"
+  ],
+  "$defs": {
+    "AfterMerge": {
+      "type": "string",
+      "enum": [
+        "keep",
+        "archive-and-request-delete",
+        "request-delete"
+      ]
+    },
+    "AgentGuard": {
+      "type": "object",
+      "properties": {
+        "allow_read": {
+          "type": "array",
+          "default": [
+            "**/.env.example"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "block_delete": {
+          "type": "boolean",
+          "default": true
+        },
+        "block_destructive_git": {
+          "type": "boolean",
+          "default": true
+        },
+        "block_hook_bypass": {
+          "type": "boolean",
+          "default": true
+        },
+        "block_privilege": {
+          "type": "boolean",
+          "default": true
+        },
+        "block_remote_exec": {
+          "type": "boolean",
+          "default": true
+        },
+        "deny_read": {
+          "type": "array",
+          "default": [
+            "**/.env",
+            "**/.env.*",
+            "**/*.pem",
+            "**/*.key",
+            "**/id_rsa*",
+            "**/id_ed25519*"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "outside_workspace": {
+          "type": "string",
+          "default": "deny"
+        },
+        "package_guard": {
+          "type": "boolean",
+          "default": true
+        },
+        "protect_repowill": {
+          "type": "boolean",
+          "default": true
+        },
+        "unknown_command": {
+          "type": "string",
+          "default": "allow"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Agents": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "default": [
+            "opencode",
+            "claude-code",
+            "generic"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "guard": {
+          "$ref": "#/$defs/AgentGuard",
+          "default": {
+            "allow_read": [
+              "**/.env.example"
+            ],
+            "block_delete": true,
+            "block_destructive_git": true,
+            "block_hook_bypass": true,
+            "block_privilege": true,
+            "block_remote_exec": true,
+            "deny_read": [
+              "**/.env",
+              "**/.env.*",
+              "**/*.pem",
+              "**/*.key",
+              "**/id_rsa*",
+              "**/id_ed25519*"
+            ],
+            "outside_workspace": "deny",
+            "package_guard": true,
+            "protect_repowill": true,
+            "unknown_command": "allow"
+          }
+        },
+        "parallel": {
+          "$ref": "#/$defs/Parallel",
+          "default": {
+            "mode": "worktrees"
+          }
+        },
+        "stop_check": {
+          "$ref": "#/$defs/StopCheck",
+          "default": {
+            "enabled": true,
+            "gate_tags": [
+              "fast"
+            ],
+            "max_feedback_lines": 40
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AllowForce": {
+      "type": "string",
+      "enum": [
+        "never",
+        "own-unmerged-with-lease"
+      ]
+    },
+    "ApprovalSource": {
+      "type": "string",
+      "enum": [
+        "local",
+        "github-review",
+        "either"
+      ]
+    },
+    "AtomicLevel": {
+      "type": "string",
+      "enum": [
+        "off",
+        "standard",
+        "strict"
+      ]
+    },
+    "BranchNaming": {
+      "type": "object",
+      "properties": {
+        "exceptions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "pattern": {
+          "type": "string",
+          "default": ""
+        },
+        "types": {
+          "type": "array",
+          "default": [
+            "feat",
+            "fix",
+            "docs",
+            "refactor",
+            "perf",
+            "test",
+            "build",
+            "ci",
+            "chore",
+            "hotfix",
+            "release",
+            "revert"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Changelog": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "default": "CHANGELOG.md"
+        },
+        "format": {
+          "type": "string",
+          "default": "keep-a-changelog"
+        },
+        "mode": {
+          "type": "string",
+          "default": "warn"
+        },
+        "require_for": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CheckOn": {
+      "type": "string",
+      "enum": [
+        "every-hook",
+        "daily",
+        "manual"
+      ]
+    },
+    "Commits": {
+      "type": "object",
+      "properties": {
+        "atomic": {
+          "$ref": "#/$defs/AtomicLevel",
+          "default": "standard"
+        },
+        "atomic_max_files": {
+          "type": "integer",
+          "format": "int64",
+          "default": 20
+        },
+        "atomic_max_lines": {
+          "type": "integer",
+          "format": "int64",
+          "default": 500
+        },
+        "atomic_single_scope": {
+          "type": "boolean",
+          "default": false
+        },
+        "body_max_line": {
+          "type": "integer",
+          "format": "int64",
+          "default": 100
+        },
+        "convention": {
+          "$ref": "#/$defs/Convention",
+          "default": "conventional"
+        },
+        "custom_pattern": {
+          "type": "string",
+          "default": ""
+        },
+        "forbid_trailing_period": {
+          "type": "boolean",
+          "default": true
+        },
+        "issue_pattern": {
+          "type": "string",
+          "default": "#\\d+"
+        },
+        "require_body_for": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "require_issue_ref": {
+          "type": "boolean",
+          "default": false
+        },
+        "require_scope": {
+          "type": "boolean",
+          "default": false
+        },
+        "required_trailers": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "scopes": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject_lowercase_start": {
+          "type": "boolean",
+          "default": true
+        },
+        "subject_max": {
+          "type": "integer",
+          "format": "int64",
+          "default": 72
+        },
+        "types": {
+          "type": "array",
+          "default": [
+            "feat",
+            "fix",
+            "docs",
+            "style",
+            "refactor",
+            "perf",
+            "test",
+            "build",
+            "ci",
+            "chore",
+            "revert"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Convention": {
+      "type": "string",
+      "enum": [
+        "conventional",
+        "free",
+        "custom"
+      ]
+    },
+    "DeleteProtection": {
+      "type": "object",
+      "properties": {
+        "allow_patterns": {
+          "type": "array",
+          "default": [
+            "**/*.log",
+            "**/tmp/**",
+            "dist/**",
+            "build/**",
+            "coverage/**",
+            "target/**",
+            "node_modules/**"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "archive_branches": {
+          "type": "boolean",
+          "default": true
+        },
+        "branches": {
+          "type": "string",
+          "default": "approval"
+        },
+        "files": {
+          "type": "string",
+          "default": "approval"
+        },
+        "recoverable": {
+          "type": "boolean",
+          "default": true
+        },
+        "tags": {
+          "type": "string",
+          "default": "approval"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DepException": {
+      "type": "object",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expires": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "package": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string"
+        },
+        "versions": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "package",
+        "versions",
+        "allow",
+        "reason",
+        "expires",
+        "request"
+      ]
+    },
+    "Dependencies": {
+      "type": "object",
+      "properties": {
+        "ecosystems": {
+          "type": "array",
+          "default": [
+            "auto"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "exceptions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DepException"
+          }
+        },
+        "licenses": {
+          "$ref": "#/$defs/LicenseConfig",
+          "default": {
+            "allowed": [
+              "MIT",
+              "Apache-2.0",
+              "BSD-2-Clause",
+              "BSD-3-Clause",
+              "ISC",
+              "0BSD",
+              "Zlib",
+              "Unlicense",
+              "CC0-1.0",
+              "MPL-2.0",
+              "Unicode-3.0",
+              "BSL-1.0"
+            ],
+            "compat_hint": true,
+            "content_licenses": [
+              "CC-BY-4.0",
+              "OFL-1.1"
+            ],
+            "denied": [],
+            "include_dev": true,
+            "open_source_only": true,
+            "unknown": "block"
+          }
+        },
+        "network": {
+          "$ref": "#/$defs/NetworkConfig",
+          "default": {
+            "cache_ttl_hours": 24,
+            "mode": "online",
+            "on_unavailable": "warn"
+          }
+        },
+        "risk": {
+          "$ref": "#/$defs/RiskConfig",
+          "default": {
+            "install_scripts": "warn",
+            "unmaintained_days": 730
+          }
+        },
+        "scope": {
+          "type": "string",
+          "default": "new-and-changed"
+        },
+        "sources": {
+          "$ref": "#/$defs/SourceConfig",
+          "default": {
+            "allow_git": false,
+            "allow_path": true,
+            "allow_url": false,
+            "allowed_registries": [
+              "default"
+            ],
+            "require_lockfile": true
+          }
+        },
+        "versions": {
+          "$ref": "#/$defs/VersionConfig",
+          "default": {
+            "allow_prerelease": false,
+            "applies_to": "direct",
+            "block_deprecated": true,
+            "block_yanked": true,
+            "min_release_age_days": 7,
+            "outdated_existing": "warn",
+            "outdated_grace_days": 30,
+            "require_latest_stable": true,
+            "tolerance": "exact"
+          }
+        },
+        "vulnerabilities": {
+          "$ref": "#/$defs/VulnConfig",
+          "default": {
+            "block_at": "high",
+            "include_dev": true,
+            "unknown_severity": "warn",
+            "warn_at": "medium"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DocCoupling": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "default": "warn"
+        },
+        "require_changed": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "when_changed": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "Docs": {
+      "type": "object",
+      "properties": {
+        "changelog": {
+          "$ref": "#/$defs/Changelog",
+          "default": {
+            "file": "",
+            "format": "",
+            "mode": "",
+            "require_for": []
+          }
+        },
+        "coupling": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DocCoupling"
+          }
+        },
+        "generated": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/GeneratedDoc"
+          }
+        },
+        "not_needed_trailer": {
+          "type": "string",
+          "default": "Docs-Not-Needed"
+        },
+        "required": {
+          "type": "array",
+          "default": [
+            "README.md",
+            "LICENSE",
+            "CHANGELOG.md"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "staleness_days": {
+          "type": "integer",
+          "format": "int64",
+          "default": 180
+        },
+        "staleness_key": {
+          "type": "string",
+          "default": "last_reviewed"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Engine": {
+      "type": "object",
+      "properties": {
+        "cache_results": {
+          "type": "boolean",
+          "default": true
+        },
+        "concurrency": {
+          "type": "integer",
+          "format": "int64",
+          "default": 0
+        },
+        "default_on_error": {
+          "type": "string",
+          "default": "block"
+        },
+        "default_timeout": {
+          "type": "string",
+          "default": "10m"
+        },
+        "require_clean_tree_for_commands": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "Gate": {
+      "type": "object",
+      "properties": {
+        "branches": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "default": ""
+        },
+        "id": {
+          "type": "string"
+        },
+        "locked": {
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "name": {
+          "type": "string"
+        },
+        "on_error": {
+          "type": "string",
+          "default": "block"
+        },
+        "only_in": {
+          "type": "string",
+          "default": "any"
+        },
+        "os": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths": {
+          "$ref": "#/$defs/GatePaths",
+          "default": {
+            "exclude": [],
+            "include": [
+              "**"
+            ]
+          }
+        },
+        "profiles": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "run_always": {
+          "type": "boolean",
+          "default": false
+        },
+        "stage_modes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Mode"
+          },
+          "default": {}
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "timeout": {
+          "type": "string",
+          "default": "10m"
+        },
+        "trigger": {
+          "type": "string",
+          "default": "auto"
+        },
+        "uses": {
+          "type": "string"
+        },
+        "with": {
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "uses",
+        "stages"
+      ]
+    },
+    "GatePaths": {
+      "type": "object",
+      "properties": {
+        "exclude": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "include": {
+          "type": "array",
+          "default": [
+            "**"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "GeneratedDoc": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "outputs": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "command"
+      ]
+    },
+    "Guards": {
+      "type": "object",
+      "properties": {
+        "agent_guard": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "branch_naming": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "branch_origin": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "delete_guard": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "history_protection": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "identity": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "main_protection": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "merge_guard": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "policy_guard": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "protected_paths": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "push_guard": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Identity": {
+      "type": "object",
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/IdentityEntry"
+          }
+        },
+        "check_committer": {
+          "type": "boolean",
+          "default": true
+        },
+        "email": {
+          "type": "string",
+          "default": ""
+        },
+        "enforce": {
+          "$ref": "#/$defs/Mode",
+          "default": "block"
+        },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "signing": {
+          "$ref": "#/$defs/SigningMode",
+          "default": "off"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IdentityEntry": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "email"
+      ]
+    },
+    "Integrity": {
+      "type": "object",
+      "properties": {
+        "check_on": {
+          "$ref": "#/$defs/CheckOn",
+          "default": "every-hook"
+        },
+        "on_violation": {
+          "$ref": "#/$defs/OnViolation",
+          "default": "block"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenseConfig": {
+      "type": "object",
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "default": [
+            "MIT",
+            "Apache-2.0",
+            "BSD-2-Clause",
+            "BSD-3-Clause",
+            "ISC",
+            "0BSD",
+            "Zlib",
+            "Unlicense",
+            "CC0-1.0",
+            "MPL-2.0",
+            "Unicode-3.0",
+            "BSL-1.0"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "compat_hint": {
+          "type": "boolean",
+          "default": true
+        },
+        "content_licenses": {
+          "type": "array",
+          "default": [
+            "CC-BY-4.0",
+            "OFL-1.1"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "denied": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "include_dev": {
+          "type": "boolean",
+          "default": true
+        },
+        "open_source_only": {
+          "type": "boolean",
+          "default": true
+        },
+        "unknown": {
+          "type": "string",
+          "default": "block"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Lock": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Merge": {
+      "type": "object",
+      "properties": {
+        "after_merge": {
+          "$ref": "#/$defs/AfterMerge",
+          "default": "keep"
+        },
+        "approval_expiry_hours": {
+          "type": "integer",
+          "format": "int64",
+          "default": 24
+        },
+        "approval_source": {
+          "$ref": "#/$defs/ApprovalSource",
+          "default": "local"
+        },
+        "location": {
+          "$ref": "#/$defs/MergeLocation",
+          "default": "auto"
+        },
+        "message_template": {
+          "type": "string",
+          "default": "Merge branch '{branch}' into {target}"
+        },
+        "require_approval": {
+          "type": "boolean",
+          "default": true
+        },
+        "run_gates_on_result": {
+          "type": "boolean",
+          "default": true
+        },
+        "strategy": {
+          "$ref": "#/$defs/MergeStrategy",
+          "default": "no-ff"
+        },
+        "trailers": {
+          "type": "boolean",
+          "default": true
+        },
+        "up_to_date": {
+          "$ref": "#/$defs/UpToDate",
+          "default": "trial-merge"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MergeLocation": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "local",
+        "github-pr"
+      ]
+    },
+    "MergeStrategy": {
+      "type": "string",
+      "enum": [
+        "no-ff",
+        "squash",
+        "ff-only",
+        "rebase-merge"
+      ]
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "block",
+        "warn",
+        "off"
+      ]
+    },
+    "NetworkConfig": {
+      "type": "object",
+      "properties": {
+        "cache_ttl_hours": {
+          "type": "integer",
+          "format": "int64",
+          "default": 24
+        },
+        "mode": {
+          "type": "string",
+          "default": "online"
+        },
+        "on_unavailable": {
+          "type": "string",
+          "default": "warn"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OnViolation": {
+      "type": "string",
+      "enum": [
+        "block",
+        "warn"
+      ]
+    },
+    "Parallel": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "default": "worktrees"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PolicyProtection": {
+      "type": "object",
+      "properties": {
+        "allow_local_weakening": {
+          "type": "boolean",
+          "default": false
+        },
+        "require_trust_for_commands": {
+          "type": "boolean",
+          "default": true
+        },
+        "weakening": {
+          "$ref": "#/$defs/WeakeningMode",
+          "default": "approval"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Project": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "default": ""
+        },
+        "license": {
+          "type": "string",
+          "default": ""
+        },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "preset": {
+          "type": "string",
+          "default": "recommended"
+        },
+        "profile": {
+          "type": "string",
+          "default": "default"
+        },
+        "stacks": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProtectedDirect": {
+      "type": "string",
+      "enum": [
+        "after-local-merge",
+        "never"
+      ]
+    },
+    "ProtectedMode": {
+      "type": "string",
+      "enum": [
+        "approval",
+        "warn",
+        "immutable"
+      ]
+    },
+    "ProtectedPath": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/ProtectedMode",
+          "default": "approval"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "pattern"
+      ]
+    },
+    "Protection": {
+      "type": "object",
+      "properties": {
+        "delete": {
+          "$ref": "#/$defs/DeleteProtection",
+          "default": {
+            "allow_patterns": [
+              "**/*.log",
+              "**/tmp/**",
+              "dist/**",
+              "build/**",
+              "coverage/**",
+              "target/**",
+              "node_modules/**"
+            ],
+            "archive_branches": true,
+            "branches": "approval",
+            "files": "approval",
+            "recoverable": true,
+            "tags": "approval"
+          }
+        },
+        "integrity": {
+          "$ref": "#/$defs/Integrity",
+          "default": {
+            "check_on": "every-hook",
+            "on_violation": "block"
+          }
+        },
+        "policy": {
+          "$ref": "#/$defs/PolicyProtection",
+          "default": {
+            "allow_local_weakening": false,
+            "require_trust_for_commands": true,
+            "weakening": "approval"
+          }
+        },
+        "protected_paths": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProtectedPath"
+          }
+        },
+        "snapshots": {
+          "$ref": "#/$defs/Snapshots",
+          "default": {
+            "before_risky_ops": true,
+            "enabled": true,
+            "include_untracked": true,
+            "interval_minutes": 10,
+            "max_count": 100,
+            "max_file_size_mb": 50,
+            "on_agent_session": true,
+            "retention_days": 14
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Push": {
+      "type": "object",
+      "properties": {
+        "allow_force": {
+          "$ref": "#/$defs/AllowForce",
+          "default": "never"
+        },
+        "protected_direct": {
+          "$ref": "#/$defs/ProtectedDirect",
+          "default": "after-local-merge"
+        },
+        "remote_deletions": {
+          "$ref": "#/$defs/RemoteDeletions",
+          "default": "approval"
+        },
+        "verified_commits": {
+          "$ref": "#/$defs/Mode",
+          "default": "warn"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Remote": {
+      "type": "object",
+      "properties": {
+        "github": {
+          "$ref": "#/$defs/RemoteGithub",
+          "default": {
+            "ci_runs_on": "",
+            "ci_workflow": false,
+            "push_archive_tags": false,
+            "required_check": "",
+            "rulesets": ""
+          }
+        },
+        "owner": {
+          "type": "string",
+          "default": ""
+        },
+        "provider": {
+          "type": "string",
+          "default": "none"
+        },
+        "remote_name": {
+          "type": "string",
+          "default": "origin"
+        },
+        "repo": {
+          "type": "string",
+          "default": ""
+        },
+        "visibility": {
+          "type": "string",
+          "default": "public"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RemoteDeletions": {
+      "type": "string",
+      "enum": [
+        "approval",
+        "never"
+      ]
+    },
+    "RemoteGithub": {
+      "type": "object",
+      "properties": {
+        "ci_runs_on": {
+          "type": "string",
+          "default": "ubuntu-latest"
+        },
+        "ci_workflow": {
+          "type": "boolean",
+          "default": true
+        },
+        "push_archive_tags": {
+          "type": "boolean",
+          "default": false
+        },
+        "required_check": {
+          "type": "string",
+          "default": "RepoWill Gates"
+        },
+        "rulesets": {
+          "type": "string",
+          "default": "auto"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RiskConfig": {
+      "type": "object",
+      "properties": {
+        "install_scripts": {
+          "type": "string",
+          "default": "warn"
+        },
+        "unmaintained_days": {
+          "type": "integer",
+          "format": "int64",
+          "default": 730
+        }
+      },
+      "additionalProperties": false
+    },
+    "SigningMode": {
+      "type": "string",
+      "enum": [
+        "off",
+        "ssh",
+        "gpg",
+        "any"
+      ]
+    },
+    "Snapshots": {
+      "type": "object",
+      "properties": {
+        "before_risky_ops": {
+          "type": "boolean",
+          "default": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_untracked": {
+          "type": "boolean",
+          "default": true
+        },
+        "interval_minutes": {
+          "type": "integer",
+          "format": "int64",
+          "default": 10
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int64",
+          "default": 100
+        },
+        "max_file_size_mb": {
+          "type": "integer",
+          "format": "int64",
+          "default": 50
+        },
+        "on_agent_session": {
+          "type": "boolean",
+          "default": true
+        },
+        "retention_days": {
+          "type": "integer",
+          "format": "int64",
+          "default": 14
+        }
+      },
+      "additionalProperties": false
+    },
+    "SourceConfig": {
+      "type": "object",
+      "properties": {
+        "allow_git": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_path": {
+          "type": "boolean",
+          "default": true
+        },
+        "allow_url": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_registries": {
+          "type": "array",
+          "default": [
+            "default"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "require_lockfile": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "StopCheck": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "gate_tags": {
+          "type": "array",
+          "default": [
+            "fast"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_feedback_lines": {
+          "type": "integer",
+          "format": "int64",
+          "default": 40
+        }
+      },
+      "additionalProperties": false
+    },
+    "Tags": {
+      "type": "object",
+      "properties": {
+        "annotated": {
+          "type": "boolean",
+          "default": true
+        },
+        "only_on": {
+          "type": "array",
+          "default": [
+            "main"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "pattern": {
+          "type": "string",
+          "default": "^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "protected": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "UpToDate": {
+      "type": "string",
+      "enum": [
+        "trial-merge",
+        "contains-main",
+        "off"
+      ]
+    },
+    "VersionConfig": {
+      "type": "object",
+      "properties": {
+        "allow_prerelease": {
+          "type": "boolean",
+          "default": false
+        },
+        "applies_to": {
+          "type": "string",
+          "default": "direct"
+        },
+        "block_deprecated": {
+          "type": "boolean",
+          "default": true
+        },
+        "block_yanked": {
+          "type": "boolean",
+          "default": true
+        },
+        "min_release_age_days": {
+          "type": "integer",
+          "format": "int64",
+          "default": 7
+        },
+        "outdated_existing": {
+          "type": "string",
+          "default": "warn"
+        },
+        "outdated_grace_days": {
+          "type": "integer",
+          "format": "int64",
+          "default": 30
+        },
+        "require_latest_stable": {
+          "type": "boolean",
+          "default": true
+        },
+        "tolerance": {
+          "type": "string",
+          "default": "exact"
+        }
+      },
+      "additionalProperties": false
+    },
+    "VulnConfig": {
+      "type": "object",
+      "properties": {
+        "block_at": {
+          "type": "string",
+          "default": "high"
+        },
+        "include_dev": {
+          "type": "boolean",
+          "default": true
+        },
+        "unknown_severity": {
+          "type": "string",
+          "default": "warn"
+        },
+        "warn_at": {
+          "type": "string",
+          "default": "medium"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Waiver": {
+      "type": "object",
+      "properties": {
+        "expires": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string",
+          "default": ""
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target",
+        "reason",
+        "expires"
+      ]
+    },
+    "WeakeningMode": {
+      "type": "string",
+      "enum": [
+        "approval",
+        "warn"
+      ]
+    },
+    "Workflow": {
+      "type": "object",
+      "properties": {
+        "allow_stacked": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_bases": {
+          "type": "array",
+          "default": [
+            "main"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "bases_by_type": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {}
+        },
+        "branch_from_tip": {
+          "type": "boolean",
+          "default": false
+        },
+        "branch_naming": {
+          "$ref": "#/$defs/BranchNaming",
+          "default": {
+            "exceptions": [],
+            "mode": "block",
+            "pattern": "",
+            "types": [
+              "feat",
+              "fix",
+              "docs",
+              "refactor",
+              "perf",
+              "test",
+              "build",
+              "ci",
+              "chore",
+              "hotfix",
+              "release",
+              "revert"
+            ]
+          }
+        },
+        "commits": {
+          "$ref": "#/$defs/Commits",
+          "default": {
+            "atomic": "standard",
+            "atomic_max_files": 20,
+            "atomic_max_lines": 500,
+            "atomic_single_scope": false,
+            "body_max_line": 100,
+            "convention": "conventional",
+            "custom_pattern": "",
+            "forbid_trailing_period": true,
+            "issue_pattern": "#\\d+",
+            "require_body_for": [],
+            "require_issue_ref": false,
+            "require_scope": false,
+            "required_trailers": [],
+            "scope_map": {},
+            "scopes": [],
+            "subject_lowercase_start": true,
+            "subject_max": 72,
+            "types": [
+              "feat",
+              "fix",
+              "docs",
+              "style",
+              "refactor",
+              "perf",
+              "test",
+              "build",
+              "ci",
+              "chore",
+              "revert"
+            ]
+          }
+        },
+        "integration_branch": {
+          "type": "string",
+          "default": ""
+        },
+        "main_branch": {
+          "type": "string",
+          "default": "main"
+        },
+        "max_commits_ahead": {
+          "type": "integer",
+          "format": "int64",
+          "default": 50
+        },
+        "merge": {
+          "$ref": "#/$defs/Merge",
+          "default": {
+            "after_merge": "keep",
+            "approval_expiry_hours": 24,
+            "approval_source": "local",
+            "location": "auto",
+            "message_template": "Merge branch '{branch}' into {target}",
+            "require_approval": true,
+            "run_gates_on_result": true,
+            "strategy": "no-ff",
+            "trailers": true,
+            "up_to_date": "trial-merge"
+          }
+        },
+        "model": {
+          "$ref": "#/$defs/WorkflowModel",
+          "default": "strict-mainline"
+        },
+        "protected_branches": {
+          "type": "array",
+          "default": [
+            "main"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "push": {
+          "$ref": "#/$defs/Push",
+          "default": {
+            "allow_force": "never",
+            "protected_direct": "after-local-merge",
+            "remote_deletions": "approval",
+            "verified_commits": "warn"
+          }
+        },
+        "stacked_patterns": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "stale_branch_days": {
+          "type": "integer",
+          "format": "int64",
+          "default": 14
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags",
+          "default": {
+            "annotated": true,
+            "only_on": [
+              "main"
+            ],
+            "pattern": "^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+            "protected": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkflowModel": {
+      "type": "string",
+      "enum": [
+        "strict-mainline",
+        "github-flow",
+        "gitflow",
+        "custom"
+      ]
+    }
+  }
+}
