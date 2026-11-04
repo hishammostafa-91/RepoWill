@@ -189,11 +189,10 @@
       }
     },
     "lock": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "boolean"
-      },
-      "default": {}
+      "$ref": "#/$defs/Lock",
+      "default": {
+        "keys": []
+      }
     },
     "min_repowill_version": {
       "type": "string",
@@ -205,8 +204,8 @@
         "description": "",
         "license": "",
         "name": "",
-        "preset": "",
-        "profile": "",
+        "preset": "recommended",
+        "profile": "default",
         "stacks": []
       }
     },
@@ -1356,6 +1355,19 @@
         "unknown": {
           "type": "string",
           "default": "block"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Lock": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false

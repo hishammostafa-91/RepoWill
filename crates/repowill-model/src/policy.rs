@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -42,7 +42,7 @@ pub struct Policy {
     #[serde(default, rename = "waivers")]
     pub waivers: Vec<Waiver>,
     #[serde(default)]
-    pub lock: std::collections::BTreeMap<String, bool>,
+    pub lock: Lock,
 }
 
 fn default_min_repowill_version() -> String {
@@ -67,7 +67,7 @@ impl Default for Policy {
             engine: Engine::default(),
             gates: vec![],
             waivers: vec![],
-            lock: std::collections::BTreeMap::new(),
+            lock: Lock::default(),
         }
     }
 }
@@ -1660,7 +1660,13 @@ fn default_mode_block() -> Mode {
     Mode::Block
 }
 
+// ---------------------------------------------------------------------------
+// lock
+// ---------------------------------------------------------------------------
 
-
-
-
+#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Lock {
+    #[serde(default)]
+    pub keys: Vec<String>,
+}

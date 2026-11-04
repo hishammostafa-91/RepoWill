@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -524,14 +524,7 @@ pub fn all_operations() -> &'static [Operation] {
 pub fn registry() -> Vec<OperationMeta> {
     all_operations()
         .iter()
-        .map(|op| OperationMeta {
-            op: *op,
-            cli_path: "",
-            gui_route: "",
-            mutating: false,
-            human_only: false,
-            status: "planned",
-        })
+        .map(|op| operation_meta(*op))
         .collect()
 }
 
@@ -548,4 +541,243 @@ pub struct OperationResponse {
     #[serde(default)]
     pub data: serde_json::Value,
 }
+fn operation_meta(op: Operation) -> OperationMeta {
+    let (cli_path, gui_route, mutating, human_only) = match op {
+        Operation::ProjectDetect => ("repowill detect [PATH]", "/setup (step 0)", false, false),
+        Operation::ProjectPlan => (
+            "repowill init/adopt ... --dry-run",
+            "/setup (review step)",
+            false,
+            false,
+        ),
+        Operation::ProjectInit => ("repowill init [PATH]", "/setup/new", true, false),
+        Operation::ProjectAdopt => ("repowill adopt [PATH]", "/setup/adopt", true, false),
+        Operation::ProjectUpdate => ("repowill update", "/setup/update", true, false),
+        Operation::ProjectStatus => ("repowill status", "/", false, false),
+        Operation::ProjectList => ("repowill projects list", "/projects", false, false),
+        Operation::ProjectAdd => ("repowill projects add", "/projects", true, false),
+        Operation::ProjectForget => ("repowill projects forget", "/projects", true, false),
+        Operation::ProjectUninstall => (
+            "repowill uninstall [--keep-policy]",
+            "/settings#uninstall",
+            true,
+            true,
+        ),
 
+        Operation::PolicyShow => ("repowill policy show", "/developer#policy", false, false),
+        Operation::PolicyValidate => (
+            "repowill policy validate [FILE]",
+            "/developer#policy",
+            false,
+            false,
+        ),
+        Operation::PolicyDiff => ("repowill policy diff", "/developer#diff", false, false),
+        Operation::PolicyApply => (
+            "repowill policy apply <FILE>",
+            "/developer#policy",
+            true,
+            false,
+        ),
+        Operation::PolicySet => (
+            "repowill policy set <key> <value>",
+            "every settings screen",
+            true,
+            false,
+        ),
+        Operation::PolicyExplain => ("repowill policy explain", "help drawers", false, false),
+        Operation::PolicySchema => ("repowill policy schema", "/developer#schema", false, false),
+        Operation::PolicyMigrate => ("repowill policy migrate", "banner on /", true, false),
+        Operation::PolicyHistory => ("repowill policy history", "/activity#policy", true, false),
+        Operation::PolicyRevert => (
+            "repowill policy revert <commit>",
+            "/activity#policy",
+            true,
+            false,
+        ),
+        Operation::PolicyLock => (
+            "repowill policy lock <key>",
+            "/developer#locks",
+            true,
+            false,
+        ),
+        Operation::PolicySummary => ("repowill policy summary", "/ and /profiles", false, false),
+
+        Operation::GateCatalog => ("repowill gate catalog", "/gates#catalog", false, false),
+        Operation::GateList => ("repowill gate list", "/gates", false, false),
+        Operation::GateShow => ("repowill gate show <id>", "/gates/:id", false, false),
+        Operation::GateAdd => ("repowill gate add", "/gates#add", true, false),
+        Operation::GateUpdate => ("repowill gate edit <id>", "/gates/:id", true, false),
+        Operation::GateRemove => ("repowill gate remove <id>", "/gates/:id", true, false),
+        Operation::GateDuplicate => ("repowill gate duplicate <id>", "/gates/:id", true, false),
+        Operation::GateMove => ("repowill gate move <id>", "/gates", true, false),
+        Operation::GateSetMode => (
+            "repowill gate enable|warn|disable <id>",
+            "/gates",
+            true,
+            false,
+        ),
+        Operation::GateTest => ("repowill gate test", "/gates/:id", false, false),
+
+        Operation::GuardList => ("repowill guard list", "/protection#guards", false, false),
+        Operation::GuardSetMode => (
+            "repowill guard set <name>",
+            "/protection#guards",
+            true,
+            false,
+        ),
+
+        Operation::CheckRun => ("repowill check", "/ and /gates", false, false),
+        Operation::FixRun => ("repowill fix", "result views", true, false),
+
+        Operation::ReportList => ("repowill report list", "/activity#runs", false, false),
+        Operation::ReportShow => ("repowill report [RUN]", "/activity#runs", false, false),
+
+        Operation::BranchNew => ("repowill branch new", "/ Start task", true, false),
+        Operation::BranchList => ("repowill branch list", "/workflow#branches", false, false),
+        Operation::BranchUpdate => ("repowill branch update", "/workflow#branches", true, false),
+
+        Operation::CommitLint => (
+            "repowill commit lint",
+            "commit dialog preview",
+            false,
+            false,
+        ),
+        Operation::CommitCreate => ("repowill commit", "/", true, false),
+
+        Operation::PushRun => ("repowill push", "/", true, false),
+        Operation::SyncRun => ("repowill sync", "/", true, false),
+
+        Operation::MergeRequest => ("repowill merge request", "/workflow#merge", true, false),
+        Operation::MergeStatus => ("repowill merge status", "/workflow#merge", false, false),
+        Operation::MergeRun => ("repowill merge run", "/workflow#merge", true, false),
+
+        Operation::TagCreate => ("repowill release tag", "/workflow#releases", true, false),
+        Operation::ChangelogGenerate => ("repowill changelog", "/docs#changelog", true, false),
+
+        Operation::RequestCreate => ("repowill request ...", "/approvals", true, false),
+        Operation::RequestList => ("repowill request list", "/approvals", false, false),
+        Operation::RequestShow => ("repowill request show <ID>", "/approvals", false, false),
+        Operation::RequestCancel => ("repowill request cancel <ID>", "/approvals", true, false),
+        Operation::RequestDecide => ("repowill approve/deny <ID>", "/approvals/:id", true, true),
+        Operation::RequestWatch => (
+            "repowill approvals watch",
+            "(GUI notifications)",
+            false,
+            false,
+        ),
+
+        Operation::RestoreList => ("repowill restore list", "/restore", false, false),
+        Operation::RestoreFile => ("repowill restore file", "/restore", true, false),
+        Operation::RestoreBranch => ("repowill restore branch", "/restore", true, false),
+
+        Operation::SnapshotCreate => (
+            "repowill snapshot create",
+            "/restore#snapshots",
+            true,
+            false,
+        ),
+        Operation::SnapshotList => ("repowill snapshot list", "/restore#snapshots", false, false),
+        Operation::SnapshotShow => ("repowill snapshot show", "/restore#snapshots", false, false),
+        Operation::SnapshotRestore => (
+            "repowill snapshot restore",
+            "/restore#snapshots",
+            true,
+            false,
+        ),
+        Operation::SnapshotPrune => ("repowill snapshot prune", "/restore#snapshots", true, true),
+
+        Operation::DepsScan => ("repowill deps scan", "/dependencies", false, false),
+        Operation::DepsCheck => ("repowill deps check", "/dependencies#check", false, false),
+        Operation::DepsExplain => ("repowill deps explain", "/dependencies/:pkg", false, false),
+        Operation::DepsLicenses => (
+            "repowill deps licenses",
+            "/dependencies#licenses",
+            false,
+            false,
+        ),
+
+        Operation::DocsCheck => ("repowill docs check", "/docs", false, false),
+        Operation::DocsMap => ("repowill docs map", "/docs", false, false),
+
+        Operation::AgentStatus => ("repowill agent status", "/agents", false, false),
+        Operation::AgentInstall => ("repowill agent install", "/agents", true, false),
+        Operation::AgentUpdate => ("repowill agent update", "/agents", true, false),
+        Operation::AgentRemove => ("repowill agent remove", "/agents", true, true),
+        Operation::AgentRules => ("repowill agent rules", "/agents#rules", false, false),
+
+        Operation::RemoteStatus => ("repowill remote status", "/remote", false, false),
+        Operation::RemoteAuth => ("repowill remote auth", "/remote#auth", true, true),
+        Operation::RemoteConnect => ("repowill remote connect", "/remote", true, false),
+        Operation::RemoteCreate => ("repowill remote create", "/remote", true, false),
+        Operation::RemoteProtect => ("repowill remote protect", "/remote#protection", true, false),
+        Operation::RemoteCi => ("repowill remote ci", "/remote#ci", true, false),
+        Operation::RemotePr => ("repowill remote pr status", "/workflow#merge", false, false),
+        Operation::RemoteDisconnect => ("repowill remote disconnect", "/remote", true, true),
+
+        Operation::CiRun => ("repowill ci", "n/a (CI only)", false, false),
+
+        Operation::ProfileList => ("repowill profile list", "/profiles", false, false),
+        Operation::ProfileShow => ("repowill profile show", "/profiles", false, false),
+        Operation::ProfileSave => ("repowill profile save", "/profiles", true, false),
+        Operation::ProfileApply => ("repowill profile apply", "/profiles", true, false),
+        Operation::ProfileExport => ("repowill profile export", "/profiles", true, false),
+        Operation::ProfileImport => ("repowill profile import", "/profiles", true, false),
+        Operation::ProfileDelete => ("repowill profile delete", "/profiles", true, true),
+
+        Operation::PresetList => ("repowill preset list", "/profiles#presets", false, false),
+        Operation::PresetShow => ("repowill preset show", "/profiles#presets", false, false),
+        Operation::PresetApply => ("repowill preset apply", "/profiles#presets", true, false),
+
+        Operation::HooksStatus => ("repowill hooks status", "/settings#hooks", false, false),
+        Operation::HooksInstall => ("repowill hooks install", "/settings#hooks", true, false),
+        Operation::HooksRepair => ("repowill hooks repair", "/settings#hooks", true, false),
+        Operation::HooksUninstall => ("repowill hooks uninstall", "/settings#hooks", true, true),
+
+        Operation::ToolsList => ("repowill tools list", "/settings#tools", false, false),
+        Operation::ToolsInstall => ("repowill tools install", "/settings#tools", true, false),
+        Operation::ToolsUpdate => ("repowill tools update", "/settings#tools", true, false),
+        Operation::ToolsVerify => ("repowill tools verify", "/settings#tools", false, false),
+        Operation::ToolsRemove => ("repowill tools remove", "/settings#tools", true, true),
+
+        Operation::AuditLog => ("repowill audit log", "/activity#audit", false, false),
+        Operation::AuditVerify => ("repowill audit verify", "/activity#audit", false, false),
+        Operation::AuditExport => ("repowill audit export", "/activity#audit", true, false),
+
+        Operation::DoctorRun => ("repowill doctor", "/settings#doctor", true, false),
+
+        Operation::EmergencyStart => (
+            "repowill emergency start",
+            "/settings#emergency",
+            true,
+            true,
+        ),
+        Operation::EmergencyStatus => (
+            "repowill emergency status",
+            "/settings#emergency",
+            false,
+            false,
+        ),
+        Operation::EmergencyStop => (
+            "repowill emergency stop",
+            "/settings#emergency",
+            true,
+            false,
+        ),
+
+        Operation::ConfigGet => ("repowill config get", "/settings", false, false),
+        Operation::ConfigSet => ("repowill config set", "/settings", true, false),
+        Operation::ConfigList => ("repowill config list", "/settings", false, false),
+        Operation::ConfigPath => ("repowill config path", "/settings", false, false),
+
+        Operation::AppVersion => ("repowill version", "/settings#about", false, false),
+        Operation::AppUpdateCheck => ("repowill update-check", "/settings#about", false, false),
+    };
+    OperationMeta {
+        op,
+        cli_path,
+        gui_route,
+        mutating,
+        human_only,
+        status: "planned",
+    }
+}
