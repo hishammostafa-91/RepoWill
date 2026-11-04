@@ -1,8 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
-use std::process::{Command, Stdio};
+use std::io::Read;
+use std::process::{ExitStatus, Stdio};
+use std::sync::mpsc;
+use std::thread;
 use std::time::{Duration, Instant};
+
+use process_wrap::std::CommandWrap;
+#[cfg(windows)]
+use process_wrap::std::JobObject;
+#[cfg(unix)]
+use process_wrap::std::ProcessGroup;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shell {
@@ -47,69 +56,56 @@ pub fn resolve_bin(name: &str) -> Option<std::path::PathBuf> {
 }
 
 pub fn run(argv: &[String], opts: &RunOptions) -> RunResult {
-    let (prog, args) = match opts.shell {
-        Shell::None => {
-            if argv.is_empty() {
-                return RunResult {
-                    code: None,
-                    stdout: String::new(),
-                    stderr: "empty argv".into(),
-                    timed_out: false,
-                };
-            }
-            (argv[0].clone(), argv[1..].to_vec())
-        }
-        Shell::Cmd => ("cmd".into(), {
-            let mut v = vec!["/C".into()];
-            v.push(argv.join(" "));
-            v
-        }),
-        Shell::Pwsh => ("pwsh".into(), {
-            let mut v = vec!["-NoProfile".into(), "-Command".into()];
-            v.push(argv.join(" "));
-            v
-        }),
-        Shell::Powershell => ("powershell".into(), {
-            let mut v = vec!["-NoProfile".into(), "-Command".into()];
-            v.push(argv.join(" "));
-            v
-        }),
-        Shell::Bash => ("bash".into(), {
-            let mut v = vec!["-c".into()];
-            v.push(argv.join(" "));
-            v
-        }),
-        Shell::Sh => ("sh".into(), {
-            let mut v = vec!["-c".into()];
-            v.push(argv.join(" "));
-            v
-        }),
+    if argv.is_empty() && opts.shell == Shell::None {
+        return RunResult {
+            code: None,
+            stdout: String::new(),
+            stderr: "empty argv".into(),
+            timed_out: false,
+        };
+    }
+
+    // Determine program + args based on shell.
+    let (program, args): (String, Vec<String>) = match opts.shell {
+        Shell::None => (argv[0].clone(), argv[1..].to_vec()),
+        Shell::Cmd => ("cmd".into(), vec!["/C".into(), argv.join(" ")]),
+        Shell::Pwsh => (
+            "pwsh".into(),
+            vec!["-NoProfile".into(), "-Command".into(), argv.join(" ")],
+        ),
+        Shell::Powershell => (
+            "powershell".into(),
+            vec!["-NoProfile".into(), "-Command".into(), argv.join(" ")],
+        ),
+        Shell::Bash => ("bash".into(), vec!["-c".into(), argv.join(" ")]),
+        Shell::Sh => ("sh".into(), vec!["-c".into(), argv.join(" ")]),
         Shell::Auto => {
             if cfg!(windows) {
-                ("cmd".into(), {
-                    let mut v = vec!["/C".into()];
-                    v.push(argv.join(" "));
-                    v
-                })
+                ("cmd".into(), vec!["/C".into(), argv.join(" ")])
             } else {
-                ("sh".into(), {
-                    let mut v = vec!["-c".into()];
-                    v.push(argv.join(" "));
-                    v
-                })
+                ("sh".into(), vec!["-c".into(), argv.join(" ")])
             }
         }
     };
 
-    let mut cmd = Command::new(&prog);
-    cmd.args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    for (k, v) in &opts.env {
-        cmd.env(k, v);
+    let mut wrapped = CommandWrap::with_new(&program, |c| {
+        c.args(&args);
+        c.stdout(Stdio::piped()).stderr(Stdio::piped());
+        for (k, v) in &opts.env {
+            c.env(k, v);
+        }
+    });
+
+    #[cfg(windows)]
+    {
+        wrapped.wrap(JobObject);
+    }
+    #[cfg(unix)]
+    {
+        wrapped.wrap(ProcessGroup::leader());
     }
 
-    let mut child = match cmd.spawn() {
+    let mut child = match wrapped.spawn() {
         Ok(c) => c,
         Err(e) => {
             return RunResult {
@@ -121,61 +117,71 @@ pub fn run(argv: &[String], opts: &RunOptions) -> RunResult {
         }
     };
 
-    let start = Instant::now();
+    let stdout_pipe = child.stdout().take();
+    let stderr_pipe = child.stderr().take();
+
+    let (tx_out, rx_out) = mpsc::channel::<Vec<u8>>();
+    let (tx_err, rx_err) = mpsc::channel::<Vec<u8>>();
+    if let Some(mut s) = stdout_pipe {
+        thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = s.read_to_end(&mut buf);
+            let _ = tx_out.send(buf);
+        });
+    } else {
+        let _ = tx_out.send(Vec::new());
+    }
+    if let Some(mut s) = stderr_pipe {
+        thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = s.read_to_end(&mut buf);
+            let _ = tx_err.send(buf);
+        });
+    } else {
+        let _ = tx_err.send(Vec::new());
+    }
+
     let timeout = opts.timeout.unwrap_or(Duration::from_secs(300));
+    let start = Instant::now();
+    let mut timed_out = false;
     loop {
         match child.try_wait() {
-            Ok(Some(status)) => {
-                let out = child
-                    .stdout
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = Vec::new();
-                        use std::io::Read;
-                        let _ = s.read_to_end(&mut buf);
-                        buf
-                    })
-                    .unwrap_or_default();
-                let err = child
-                    .stderr
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = Vec::new();
-                        use std::io::Read;
-                        let _ = s.read_to_end(&mut buf);
-                        buf
-                    })
-                    .unwrap_or_default();
-                return RunResult {
-                    code: status.code(),
-                    stdout: String::from_utf8_lossy(&out[..out.len().min(opts.cap_bytes)])
-                        .to_string(),
-                    stderr: String::from_utf8_lossy(&err[..err.len().min(opts.cap_bytes)])
-                        .to_string(),
-                    timed_out: false,
-                };
-            }
+            Ok(Some(_)) => break,
             Ok(None) => {
                 if start.elapsed() >= timeout {
-                    let _ = child.kill();
-                    return RunResult {
-                        code: None,
-                        stdout: String::new(),
-                        stderr: "timed out".into(),
-                        timed_out: true,
-                    };
+                    timed_out = true;
+                    let _ = child.start_kill();
+                    let _ = child.wait();
+                    break;
                 }
-                std::thread::sleep(Duration::from_millis(50));
+                thread::sleep(Duration::from_millis(25));
             }
-            Err(e) => {
-                return RunResult {
-                    code: None,
-                    stdout: String::new(),
-                    stderr: e.to_string(),
-                    timed_out: false,
-                };
-            }
+            Err(_) => break,
         }
+    }
+
+    let out = rx_out
+        .recv_timeout(Duration::from_secs(5))
+        .unwrap_or_default();
+    let err = rx_err
+        .recv_timeout(Duration::from_secs(5))
+        .unwrap_or_default();
+
+    let code = if timed_out {
+        None
+    } else {
+        child
+            .try_wait()
+            .ok()
+            .flatten()
+            .and_then(|s: ExitStatus| s.code())
+    };
+
+    RunResult {
+        code,
+        stdout: String::from_utf8_lossy(&out[..out.len().min(opts.cap_bytes)]).to_string(),
+        stderr: String::from_utf8_lossy(&err[..err.len().min(opts.cap_bytes)]).to_string(),
+        timed_out,
     }
 }
 
@@ -185,29 +191,18 @@ mod tests {
 
     #[test]
     fn run_echo() {
-        let r = if cfg!(windows) {
-            run(
-                &["cmd".into(), "/C".into(), "echo hi".into()],
-                &RunOptions {
-                    shell: Shell::None,
-                    ..Default::default()
-                },
-            )
-        } else {
-            run(
-                &["sh".into(), "-c".into(), "echo hi".into()],
-                &RunOptions {
-                    shell: Shell::None,
-                    ..Default::default()
-                },
-            )
-        };
+        let r = run(
+            &["echo".into(), "hi".into()],
+            &RunOptions {
+                shell: Shell::Auto,
+                ..Default::default()
+            },
+        );
         assert!(r.stdout.contains("hi") || r.code == Some(0));
     }
 
     #[test]
-    fn resolve_bin_finds_something() {
-        // `which` itself may not exist on PATH as a binary named which on all systems; just call.
-        let _ = resolve_bin("git");
+    fn resolve_bin_finds_git() {
+        assert!(resolve_bin("git").is_some());
     }
 }

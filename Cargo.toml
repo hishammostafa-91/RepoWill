@@ -42,7 +42,7 @@ camino = "=1.2.6"
 directories = "=6.0.0"
 dunce = "=1.0.5"
 fd-lock = "=4.0.4"
-process-wrap = "=10.0.1"
+process-wrap = { version = "=10.0.1", features = ["std", "job-object", "process-group", "creation-flags"] }
 which = "=8.0.6"
 trash = "=5.2.9"
 keyring = "=4.2.0"

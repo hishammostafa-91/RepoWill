@@ -18,7 +18,7 @@ pub fn confirmation_code() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let n = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis() as u32;
     format!("{:06}", n % 1_000_000)
 }

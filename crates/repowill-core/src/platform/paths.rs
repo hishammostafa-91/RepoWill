@@ -41,17 +41,19 @@ pub fn app_dirs() -> Result<AppDirs, String> {
 }
 
 pub fn normalize(path: &Path) -> Utf8PathBuf {
-    let simplified = path.to_path_buf();
-    Utf8PathBuf::from_path_buf(simplified)
+    let simplified = dunce::simplified(path);
+    let p = simplified.to_owned();
+    Utf8PathBuf::from_path_buf(p)
         .unwrap_or_else(|p| Utf8PathBuf::from(p.to_string_lossy().to_string()))
 }
 
 pub fn paths_equal(a: &Path, b: &Path) -> bool {
+    let na = normalize(a);
+    let nb = normalize(b);
     if cfg!(windows) {
-        a.to_string_lossy()
-            .eq_ignore_ascii_case(&b.to_string_lossy())
+        na.as_str().eq_ignore_ascii_case(nb.as_str())
     } else {
-        a == b
+        na == nb
     }
 }
 

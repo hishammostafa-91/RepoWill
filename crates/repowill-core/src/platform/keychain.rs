@@ -36,6 +36,47 @@ pub fn set_secret(service: &str, account: &str, value: &str) -> Result<(), Strin
     entry.set_password(value).map_err(|e| e.to_string())
 }
 
+pub fn get_secret_file(path: &std::path::Path) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let v = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(Some(v))
+}
+
+pub fn set_secret_file(path: &std::path::Path, value: &str) -> Result<(), String> {
+    super::fs::atomic_write(path, value.as_bytes())?;
+    super::fs::set_restrictive_permissions(path)?;
+    Ok(())
+}
+
+impl SecretStore {
+    pub fn get(&self, service: &str, account: &str) -> Result<Option<String>, String> {
+        match self {
+            SecretStore::Keyring => get_secret(service, account),
+            SecretStore::EnvFallback => {
+                let key = format!(
+                    "{}_{}",
+                    service.to_uppercase().replace('-', "_"),
+                    account.to_uppercase().replace('-', "_")
+                );
+                Ok(std::env::var(&key).ok())
+            }
+            SecretStore::FileFallback(p) => get_secret_file(p),
+        }
+    }
+    pub fn set(&self, service: &str, account: &str, value: &str) -> Result<(), String> {
+        match self {
+            SecretStore::Keyring => set_secret(service, account, value),
+            SecretStore::EnvFallback => {
+                // Environment fallback is read-only; cannot set at runtime.
+                Err("env fallback is read-only".to_string())
+            }
+            SecretStore::FileFallback(p) => set_secret_file(p, value),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

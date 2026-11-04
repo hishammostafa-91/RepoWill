@@ -10,7 +10,7 @@ use fd_lock::RwLock;
 pub fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), String> {
     let parent = path.parent().ok_or_else(|| "no parent".to_string())?;
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    let tmp = path.with_extension("tmp");
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
     {
         let mut f = fs::File::create(&tmp).map_err(|e| e.to_string())?;
         f.write_all(contents).map_err(|e| e.to_string())?;
@@ -34,7 +34,7 @@ pub fn with_lock<R, F: FnOnce(&mut std::fs::File) -> R>(path: &Path, f: F) -> Re
         .read(true)
         .write(true)
         .create(true)
-        .truncate(true)
+        .truncate(false)
         .open(path)
         .map_err(|e| e.to_string())?;
     let mut lock = RwLock::new(file);

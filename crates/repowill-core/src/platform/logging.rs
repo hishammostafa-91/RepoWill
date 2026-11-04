@@ -1,9 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
+use std::io::Write;
 use std::path::Path;
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+
+#[derive(Clone)]
+struct RedactingWriter<W> {
+    inner: W,
+}
+
+impl<W: Write> Write for RedactingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let s = String::from_utf8_lossy(buf);
+        let r = redact(&s);
+        self.inner.write_all(r.as_bytes())?;
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
 
 pub fn redact(input: &str) -> String {
     // Simple redaction: replace anything that looks like a token/secret.
@@ -37,17 +56,20 @@ pub fn redact(input: &str) -> String {
     result
 }
 
-pub fn init_logging(log_dir: &Path) -> Result<(), String> {
+pub fn init_logging(log_dir: &Path) -> Result<WorkerGuard, String> {
     let appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "repowill.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
+    let (non_blocking, guard) = tracing_appender::non_blocking(appender);
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    let fmt_layer = fmt::layer().with_writer(non_blocking);
+    let writer = non_blocking.clone();
+    let fmt_layer = fmt::layer().with_writer(move || RedactingWriter {
+        inner: writer.clone(),
+    });
     tracing_subscriber::registry()
         .with(filter)
         .with(fmt_layer)
         .try_init()
         .map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(guard)
 }
 
 #[cfg(test)]
