@@ -40,6 +40,14 @@ tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 camino = "=1.2.6"
 directories = "=6.0.0"
+dunce = "=1.0.5"
+fd-lock = "=4.0.4"
+process-wrap = "=10.0.1"
+which = "=8.0.6"
+trash = "=5.2.9"
+keyring = "=4.2.0"
+tracing-appender = "=0.2.5"
+tempfile = "=3.27.0"
 
 [profile.release]
 lto = "thin"
