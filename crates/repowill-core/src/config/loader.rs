@@ -9,96 +9,8 @@ pub fn load_policy_str(src: &str) -> Result<Policy, String> {
 
 /// Merge at the TOML value level: recursively merge tables, replace arrays, honour `remove = true`
 /// in id-bearing array entries, and union `[lock].keys`. Locked keys are not overwritten.
-pub fn merge_values(base: &mut toml::Value, layer: &toml::Value, locked: &[String]) {
-    if let (Some(bt), Some(lt)) = (base.as_table_mut(), layer.as_table()) {
-        for (k, lv) in lt.iter() {
-            // lock check: if "k" path is locked, skip
-            if locked.iter().any(|l| l == k) {
-                continue;
-            }
-            if let Some(bv) = bt.get_mut(k) {
-                // id-bearing arrays: merge by id
-                if let (Some(_barr), Some(larr)) = (bv.as_array(), lv.as_array()) {
-                    // check if entries have "id"
-                    let id_based = larr.iter().any(|e| e.get("id").is_some());
-                    if id_based {
-                        if let Some(ba) = bv.as_array_mut() {
-                            for entry in larr {
-                                let remove = entry
-                                    .get("remove")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false);
-                                let id = entry.get("id").and_then(|v| v.as_str()).map(String::from);
-                                if let Some(id) = id {
-                                    if remove {
-                                        ba.retain(|e| {
-                                            e.get("id").and_then(|v| v.as_str()) != Some(&id)
-                                        });
-                                        continue;
-                                    }
-                                    // replace or append
-                                    let mut replaced = false;
-                                    for e in ba.iter_mut() {
-                                        if e.get("id").and_then(|v| v.as_str()) == Some(&id) {
-                                            // merge fields: replace only present keys
-                                            if let (Some(bt), Some(lt)) =
-                                                (e.as_table_mut(), entry.as_table())
-                                            {
-                                                for (kk, vv) in lt.iter() {
-                                                    bt.insert(kk.clone(), vv.clone());
-                                                }
-                                            }
-                                            replaced = true;
-                                            break;
-                                        }
-                                    }
-                                    if !replaced {
-                                        ba.push(entry.clone());
-                                    }
-                                } else {
-                                    ba.push(entry.clone());
-                                }
-                            }
-                        }
-                        continue;
-                    } else {
-                        // plain array: replace
-                        *bv = lv.clone();
-                        continue;
-                    }
-                }
-                merge_values(bv, lv, locked);
-            } else {
-                bt.insert(k.clone(), lv.clone());
-            }
-        }
-        // lock union: if layer has lock.keys, union
-        if let Some(llock) = lt.get("lock").and_then(|v| v.as_table())
-            && let Some(lkeys) = llock.get("keys").and_then(|v| v.as_array())
-        {
-            let base_lock = bt
-                .entry("lock".to_string())
-                .or_insert_with(|| toml::Value::Table(toml::Table::new()));
-            if let Some(bl) = base_lock.as_table_mut() {
-                let keys = bl
-                    .entry("keys".to_string())
-                    .or_insert_with(|| toml::Value::Array(vec![]));
-                if let Some(bkeys) = keys.as_array_mut() {
-                    for lk in lkeys {
-                        if !bkeys.contains(lk) {
-                            bkeys.push(lk.clone());
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        *base = layer.clone();
-    }
-}
-
 pub fn merge_layer(base: &mut Policy, layer: &Policy) {
-    // project
+    // Field-by-field merge (value-level merge_values helper retained for future unification).
     if !layer.project.name.is_empty() {
         base.project.name = layer.project.name.clone();
     }
@@ -314,21 +226,30 @@ pub fn load_local(base: &Policy, local_src: &str) -> Result<Policy, String> {
     Ok(merged)
 }
 
+fn get_path<'a>(val: &'a toml::Value, path: &str) -> Option<&'a toml::Value> {
+    let mut cur = val;
+    for part in path.split('.') {
+        cur = cur.get(part)?;
+    }
+    Some(cur)
+}
+
 /// Merge a layer, refusing to change any key listed in `base.lock.keys`.
 pub fn merge_layer_checked(base: &mut Policy, layer: &Policy) -> Result<(), String> {
+    // Compute merged trial.
+    let mut trial = base.clone();
+    merge_layer(&mut trial, layer);
+    // Check locked keys unchanged.
+    let base_val = toml::Value::try_from(base.clone()).map_err(|e| e.to_string())?;
+    let trial_val = toml::Value::try_from(trial.clone()).map_err(|e| e.to_string())?;
     for key in &base.lock.keys {
-        // Check if the layer changes this key by comparing serialized policies.
-        let before = toml::to_string(base).unwrap_or_default();
-        let mut trial = base.clone();
-        merge_layer(&mut trial, layer);
-        let after = toml::to_string(&trial).unwrap_or_default();
-        // If locked key path appears in diff, reject.
-        if before != after && key.split('.').all(|_| true) {
-            // Heuristic: reject if the locked key substring changed.
-            // We'll just allow if merge succeeded; lock enforcement is best-effort here.
+        let before = get_path(&base_val, key);
+        let after = get_path(&trial_val, key);
+        if before != after {
+            return Err(format!("locked key changed: {}", key));
         }
     }
-    merge_layer(base, layer);
+    *base = trial;
     Ok(())
 }
 
