@@ -140,6 +140,8 @@ pub struct IdentityEntry {
     pub id: String,
     pub name: String,
     pub email: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 impl Default for Identity {
@@ -738,6 +740,8 @@ pub struct ProtectedPath {
     pub mode: ProtectedMode,
     #[serde(default)]
     pub reason: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 #[derive(
@@ -1121,6 +1125,8 @@ pub struct DepException {
     pub reason: String,
     pub expires: String,
     pub request: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 impl Default for Dependencies {
@@ -1252,6 +1258,8 @@ pub struct DocCoupling {
     pub require_changed: Vec<String>,
     #[serde(default = "default_mode_warn")]
     pub mode: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
@@ -1274,6 +1282,8 @@ pub struct GeneratedDoc {
     pub command: String,
     #[serde(default)]
     pub outputs: Vec<String>,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 impl Default for Docs {
@@ -1567,12 +1577,15 @@ fn default_engine_on_error() -> String {
 #[serde(deny_unknown_fields)]
 pub struct Gate {
     pub id: String,
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub uses: String,
     #[serde(default)]
     pub with: serde_json::Value,
+    #[serde(default)]
     pub stages: Vec<String>,
     #[serde(default = "default_mode_block")]
     pub mode: Mode,
@@ -1602,6 +1615,8 @@ pub struct Gate {
     pub tags: Vec<String>,
     #[serde(default)]
     pub locked: bool,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
@@ -1647,6 +1662,8 @@ pub struct Waiver {
     pub expires: String,
     #[serde(default)]
     pub request: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 // ---------------------------------------------------------------------------
