@@ -2,6 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { type Route, routes } from "./routes";
 
 interface OpResult {
   op: string;
@@ -18,10 +19,8 @@ interface Diagnostic {
   fix?: string | null;
 }
 
-type Page = "about" | "policy";
-
 function App() {
-  const [page, setPage] = useState<Page>("about");
+  const [page, setPage] = useState<Route>("about");
   const [version, setVersion] = useState<string>("…");
   const [error, setError] = useState<string>("");
   const [policy, setPolicy] = useState<string>("");
@@ -72,12 +71,15 @@ function App() {
       <aside style={{ width: 220, padding: 16, borderRight: "1px solid #ddd" }}>
         <h2>RepoWill</h2>
         <nav style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button type="button" onClick={() => setPage("about")}>
-            About
-          </button>
-          <button type="button" onClick={() => setPage("policy")}>
-            Policy viewer
-          </button>
+          {routes.map((route) => (
+            <button
+              type="button"
+              key={route.id}
+              onClick={() => setPage(route.id)}
+            >
+              {route.label}
+            </button>
+          ))}
         </nav>
       </aside>
       <main style={{ flex: 1, padding: 24, overflow: "auto" }}>

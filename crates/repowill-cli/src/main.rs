@@ -38,6 +38,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Print version information.
+    #[command(after_help = "Examples:\n  repowill version")]
     Version,
     /// Manage RepoWill configuration.
     #[command(
@@ -56,6 +57,7 @@ enum Commands {
         command: PolicyCommand,
     },
     /// Run a raw operation from JSON.
+    #[command(after_help = "Examples:\n  repowill op '{\"op\":\"app.version\"}'")]
     Op {
         /// JSON request, or @path to read it from a file.
         request: String,
@@ -64,40 +66,59 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum ConfigCommand {
+    #[command(after_help = "Examples:\n  repowill config get --key theme")]
     Get {
         #[arg(long)]
         key: String,
     },
+    #[command(after_help = "Examples:\n  repowill config set --key theme --value dark")]
     Set {
         #[arg(long)]
         key: String,
         #[arg(long)]
         value: String,
     },
+    #[command(after_help = "Examples:\n  repowill config list")]
     List,
+    #[command(after_help = "Examples:\n  repowill config path")]
     Path,
 }
 
 #[derive(Subcommand, Debug)]
 enum PolicyCommand {
-    Show,
+    #[command(after_help = "Examples:\n  repowill policy show")]
+    Show {
+        #[arg(long)]
+        effective: bool,
+        #[arg(long)]
+        layers: bool,
+        #[arg(long)]
+        origin: bool,
+    },
+    #[command(
+        after_help = "Examples:\n  repowill policy validate\n  repowill policy validate --path policy.toml"
+    )]
     Validate {
         #[arg(long)]
         path: Option<PathBuf>,
         #[arg(long)]
         source: Option<String>,
     },
+    #[command(after_help = "Examples:\n  repowill policy schema")]
     Schema,
+    #[command(after_help = "Examples:\n  repowill policy explain --key guards.main_protection")]
     Explain {
         #[arg(long)]
         key: String,
     },
+    #[command(after_help = "Examples:\n  repowill policy set --key project.name --value demo")]
     Set {
         #[arg(long)]
         key: String,
         #[arg(long)]
         value: String,
     },
+    #[command(after_help = "Examples:\n  repowill policy diff")]
     Diff {
         #[arg(long)]
         from: Option<PathBuf>,
@@ -115,7 +136,7 @@ fn main() {
 fn run(cli: Cli) -> i32 {
     let repo_root = cli.repo.clone().or_else(|| std::env::current_dir().ok());
     let mut ctx = OpContext::new(repo_root.clone());
-    if cli.progress {
+    if cli.json && cli.progress {
         ctx = ctx.with_progress(|event| {
             let line = serde_json::to_string(&event).unwrap_or_default();
             eprintln!("{line}");
@@ -166,7 +187,13 @@ fn run(cli: Cli) -> i32 {
             }
         };
         let params = value.get("params").cloned().unwrap_or_else(|| json!({}));
-        let ctx = OpContext::new(repo_root.clone());
+        let mut ctx = OpContext::new(repo_root.clone());
+        if cli.json && cli.progress {
+            ctx = ctx.with_progress(|event| {
+                let line = serde_json::to_string(&event).unwrap_or_default();
+                eprintln!("{line}");
+            });
+        }
         match ops::execute(op, params, &ctx) {
             Ok(data) => {
                 if cli.json {
@@ -229,7 +256,18 @@ fn run(cli: Cli) -> i32 {
             ConfigCommand::Path => (repowill_core::Operation::ConfigPath, json!({})),
         },
         Commands::Policy { command } => match command {
-            PolicyCommand::Show => (repowill_core::Operation::PolicyShow, json!({})),
+            PolicyCommand::Show {
+                effective,
+                layers,
+                origin,
+            } => (
+                repowill_core::Operation::PolicyShow,
+                json!({
+                    "effective": effective,
+                    "layers": layers,
+                    "origin": origin
+                }),
+            ),
             PolicyCommand::Validate { path, source } => {
                 let mut params = json!({});
                 if let Some(path) = path {

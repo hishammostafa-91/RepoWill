@@ -259,6 +259,18 @@ mod tests {
     }
 
     #[test]
+    fn golden_migration_v0_to_v1() {
+        let runner = MigrationRunner::with(vec![Box::new(BumpVersion)]);
+        let mut policy = Policy {
+            schema_version: 0,
+            ..Policy::default()
+        };
+        let outcome = runner.apply_all_outcome(&mut policy, None).unwrap();
+        let expected = include_str!("../../tests/fixtures/config/migrate/v0-expected.toml");
+        assert_eq!(outcome.after.trim(), expected.trim());
+    }
+
+    #[test]
     fn null_safe_toml_serialization() {
         let policy = Policy::default();
         let text = policy_to_toml(&policy).unwrap();

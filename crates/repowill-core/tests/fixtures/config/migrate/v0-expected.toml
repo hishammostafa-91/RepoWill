@@ -1,0 +1,239 @@
+extends = []
+gates = []
+min_repowill_version = "1.0.0"
+schema_version = 1
+waivers = []
+
+[agents]
+enabled = ["opencode", "claude-code", "generic"]
+
+[agents.guard]
+allow_read = ["**/.env.example"]
+block_delete = true
+block_destructive_git = true
+block_hook_bypass = true
+block_privilege = true
+block_remote_exec = true
+deny_read = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key", "**/id_rsa*", "**/id_ed25519*"]
+outside_workspace = "deny"
+package_guard = true
+protect_repowill = true
+unknown_command = "allow"
+
+[agents.parallel]
+mode = "worktrees"
+
+[agents.stop_check]
+enabled = true
+gate_tags = ["fast"]
+max_feedback_lines = 40
+
+[dependencies]
+ecosystems = ["auto"]
+enabled = true
+exceptions = []
+scope = "new-and-changed"
+
+[dependencies.licenses]
+allowed = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "Zlib", "Unlicense", "CC0-1.0", "MPL-2.0", "Unicode-3.0", "BSL-1.0"]
+compat_hint = true
+content_licenses = ["CC-BY-4.0", "OFL-1.1"]
+denied = []
+include_dev = true
+open_source_only = true
+unknown = "block"
+
+[dependencies.network]
+cache_ttl_hours = 24
+mode = "online"
+on_unavailable = "warn"
+
+[dependencies.risk]
+install_scripts = "warn"
+unmaintained_days = 730
+
+[dependencies.sources]
+allow_git = false
+allow_path = true
+allow_url = false
+allowed_registries = ["default"]
+require_lockfile = true
+
+[dependencies.versions]
+allow_prerelease = false
+applies_to = "direct"
+block_deprecated = true
+block_yanked = true
+min_release_age_days = 7
+outdated_existing = "warn"
+outdated_grace_days = 30
+require_latest_stable = true
+tolerance = "exact"
+
+[dependencies.vulnerabilities]
+block_at = "high"
+include_dev = true
+unknown_severity = "warn"
+warn_at = "medium"
+
+[docs]
+coupling = []
+generated = []
+not_needed_trailer = "Docs-Not-Needed"
+required = ["README.md", "LICENSE", "CHANGELOG.md"]
+staleness_days = 180
+staleness_key = "last_reviewed"
+
+[docs.changelog]
+file = "CHANGELOG.md"
+format = "keep-a-changelog"
+mode = "warn"
+require_for = []
+
+[engine]
+cache_results = true
+concurrency = 0
+default_on_error = "block"
+default_timeout = "10m"
+require_clean_tree_for_commands = false
+
+[guards]
+agent_guard = "block"
+branch_naming = "block"
+branch_origin = "block"
+delete_guard = "block"
+history_protection = "block"
+identity = "block"
+main_protection = "block"
+merge_guard = "block"
+policy_guard = "block"
+protected_paths = "block"
+push_guard = "block"
+
+[identity]
+allowed = []
+check_committer = true
+email = ""
+enforce = "block"
+name = ""
+signing = "off"
+
+[lock]
+keys = []
+
+[project]
+description = ""
+license = ""
+name = ""
+preset = "recommended"
+profile = "default"
+stacks = []
+
+[protection]
+protected_paths = []
+
+[protection.delete]
+allow_patterns = ["**/*.log", "**/tmp/**", "dist/**", "build/**", "coverage/**", "target/**", "node_modules/**"]
+archive_branches = true
+branches = "approval"
+files = "approval"
+recoverable = true
+tags = "approval"
+
+[protection.integrity]
+check_on = "every-hook"
+on_violation = "block"
+
+[protection.policy]
+allow_local_weakening = false
+require_trust_for_commands = true
+weakening = "approval"
+
+[protection.snapshots]
+before_risky_ops = true
+enabled = true
+include_untracked = true
+interval_minutes = 10
+max_count = 100
+max_file_size_mb = 50
+on_agent_session = true
+retention_days = 14
+
+[remote]
+owner = ""
+provider = "none"
+remote_name = "origin"
+repo = ""
+visibility = "public"
+
+[remote.github]
+ci_runs_on = "ubuntu-latest"
+ci_workflow = true
+push_archive_tags = false
+required_check = "RepoWill Gates"
+rulesets = "auto"
+
+[workflow]
+allow_stacked = false
+allowed_bases = ["main"]
+branch_from_tip = false
+integration_branch = ""
+main_branch = "main"
+max_commits_ahead = 50
+model = "strict-mainline"
+protected_branches = ["main"]
+stacked_patterns = []
+stale_branch_days = 14
+
+[workflow.bases_by_type]
+
+[workflow.branch_naming]
+exceptions = []
+mode = "block"
+pattern = ""
+types = ["feat", "fix", "docs", "refactor", "perf", "test", "build", "ci", "chore", "hotfix", "release", "revert"]
+
+[workflow.commits]
+atomic = "standard"
+atomic_max_files = 20
+atomic_max_lines = 500
+atomic_single_scope = false
+body_max_line = 100
+convention = "conventional"
+custom_pattern = ""
+forbid_trailing_period = true
+issue_pattern = '#\d+'
+require_body_for = []
+require_issue_ref = false
+require_scope = false
+required_trailers = []
+scopes = []
+subject_lowercase_start = true
+subject_max = 72
+types = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
+
+[workflow.commits.scope_map]
+
+[workflow.merge]
+after_merge = "keep"
+approval_expiry_hours = 24
+approval_source = "local"
+location = "auto"
+message_template = "Merge branch '{branch}' into {target}"
+require_approval = true
+run_gates_on_result = true
+strategy = "no-ff"
+trailers = true
+up_to_date = "trial-merge"
+
+[workflow.push]
+allow_force = "never"
+protected_direct = "after-local-merge"
+remote_deletions = "approval"
+verified_commits = "warn"
+
+[workflow.tags]
+annotated = true
+only_on = ["main"]
+pattern = '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
+protected = true

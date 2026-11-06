@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![allow(clippy::result_large_err)]
 #![allow(clippy::type_complexity)]
 
@@ -325,6 +325,8 @@ fn policy_show(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     let _ = params;
     Ok(json!({
         "path": path,
+        "origin": path,
+        "layers": if path.exists() { json!([path]) } else { json!([]) },
         "policy": toml,
         "diagnostics": diagnostics
     }))
@@ -492,6 +494,68 @@ fn json_to_toml_value(value: &Value) -> toml::Value {
                 table.insert(key.clone(), json_to_toml_value(item));
             }
             toml::Value::Table(table)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(unsafe_code)]
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn app_version_returns_version() {
+        let ctx = OpContext::new(None);
+        let result = execute(Operation::AppVersion, json!({}), &ctx).unwrap();
+        assert_eq!(result["version"], env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn planned_operation_returns_usage_error() {
+        let ctx = OpContext::new(None);
+        let error = execute(Operation::ProjectDetect, json!({}), &ctx).unwrap_err();
+        assert_eq!(error.exit_code(), 2);
+        assert_eq!(error.code, "RW-E1000");
+    }
+
+    #[test]
+    fn policy_validate_invalid_source_returns_policy_error() {
+        let ctx = OpContext::new(None);
+        let error = execute(
+            Operation::PolicyValidate,
+            json!({ "source": "schema_version = 1\nmin_repowill_version = \"99.0.0\"" }),
+            &ctx,
+        )
+        .unwrap_err();
+        assert_eq!(error.exit_code(), 3);
+        assert!(
+            error.details.unwrap()["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["code"] == "RW-E2018")
+        );
+    }
+
+    #[test]
+    fn config_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        unsafe {
+            std::env::set_var("REPOWILL_HOME", dir.path());
+        }
+        let ctx = OpContext::new(None);
+        execute(
+            Operation::ConfigSet,
+            json!({ "key": "ops-test", "value": "ok" }),
+            &ctx,
+        )
+        .unwrap();
+        let result = execute(Operation::ConfigGet, json!({ "key": "ops-test" }), &ctx).unwrap();
+        assert_eq!(result["value"], "ok");
+        execute(Operation::ConfigList, json!({}), &ctx).unwrap();
+        unsafe {
+            std::env::remove_var("REPOWILL_HOME");
         }
     }
 }

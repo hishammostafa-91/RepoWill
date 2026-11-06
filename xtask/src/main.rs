@@ -40,6 +40,7 @@ fn main() -> Result<()> {
         CommandKind::GuiDev => run_gui_dev(),
         CommandKind::Verify => {
             run_check()?;
+            run_parity()?;
             run_test()?;
             println!("verify: OK");
             Ok(())
@@ -129,19 +130,53 @@ fn run_gen() -> Result<()> {
 
 fn run_parity() -> Result<()> {
     println!("== parity ==");
-    let status = Command::new("cargo")
-        .args(["run", "-q", "-p", "repowill-cli", "--", "--help"])
-        .status()
-        .context("cargo run repowill --help")?;
-    if !status.success() {
-        anyhow::bail!("cli help failed");
+    for args in [
+        vec!["--help"],
+        vec!["config", "--help"],
+        vec!["policy", "--help"],
+        vec!["op", "--help"],
+    ] {
+        let status = Command::new("cargo")
+            .args(["run", "-q", "-p", "repowill-cli", "--"])
+            .args(&args)
+            .status()
+            .with_context(|| format!("cargo run repowill {}", args.join(" ")))?;
+        if !status.success() {
+            anyhow::bail!("cli help failed for {}", args.join(" "));
+        }
+    }
+    let output = Command::new("cargo")
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "repowill-cli",
+            "--",
+            "op",
+            "{\"op\":\"app.version\"}",
+        ])
+        .output()
+        .context("cargo run repowill op app.version")?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "implemented op failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     let status = Command::new("cargo")
-        .args(["run", "-q", "-p", "repowill-cli", "--", "policy", "--help"])
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "repowill-cli",
+            "--",
+            "op",
+            "{\"op\":\"project.detect\"}",
+        ])
         .status()
-        .context("cargo run repowill policy --help")?;
-    if !status.success() {
-        anyhow::bail!("policy help failed");
+        .context("cargo run repowill op project.detect")?;
+    if status.code() != Some(2) {
+        anyhow::bail!("planned op did not exit with code 2");
     }
     println!("parity: OK");
     Ok(())
