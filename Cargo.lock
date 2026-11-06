@@ -3266,6 +3266,7 @@ dependencies = [
  "predicates",
  "repowill-core",
  "repowill-model",
+ "serde_json",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3283,6 +3284,7 @@ dependencies = [
  "process-wrap",
  "regex",
  "repowill-model",
+ "serde",
  "serde_json",
  "sha2 0.11.1",
  "tempfile",
@@ -3300,6 +3302,8 @@ dependencies = [
 name = "repowill-gui"
 version = "0.1.0"
 dependencies = [
+ "repowill-core",
+ "repowill-model",
  "serde",
  "serde_json",
  "tauri",

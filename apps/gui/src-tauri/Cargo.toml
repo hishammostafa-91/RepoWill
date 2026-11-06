@@ -24,6 +24,8 @@ tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-opener = "=2.7.2"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
+repowill-core = { path = "../../../crates/repowill-core", version = "0.1.0" }
+repowill-model = { path = "../../../crates/repowill-model", version = "0.1.0" }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
