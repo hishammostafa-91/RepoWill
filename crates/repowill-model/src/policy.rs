@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 // Top level
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
     pub schema_version: u32,
@@ -76,7 +76,7 @@ impl Default for Policy {
 // 3.2 project
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Project {
     #[serde(default)]
@@ -117,7 +117,7 @@ fn default_profile() -> String {
 // 3.3 identity
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Identity {
     #[serde(default)]
@@ -134,12 +134,14 @@ pub struct Identity {
     pub signing: SigningMode,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IdentityEntry {
     pub id: String,
     pub name: String,
     pub email: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 impl Default for Identity {
@@ -182,7 +184,7 @@ pub enum SigningMode {
 // 3.4 workflow
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Workflow {
     #[serde(default = "default_workflow_model")]
@@ -277,7 +279,7 @@ fn default_max_commits_ahead() -> i64 {
     50
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BranchNaming {
     #[serde(default = "default_mode_block")]
@@ -318,7 +320,7 @@ fn default_branch_types() -> Vec<String> {
     ]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Commits {
     #[serde(default = "default_convention")]
@@ -443,7 +445,7 @@ fn default_atomic_max_lines() -> i64 {
     500
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Merge {
     #[serde(default = "default_merge_strategy")]
@@ -563,7 +565,7 @@ fn default_approval_source() -> ApprovalSource {
     ApprovalSource::Local
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Push {
     #[serde(default = "default_allow_force")]
@@ -630,7 +632,7 @@ fn default_remote_deletions() -> RemoteDeletions {
     RemoteDeletions::Approval
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Tags {
     #[serde(default = "default_tag_pattern")]
@@ -665,7 +667,7 @@ fn default_only_on() -> Vec<String> {
 // 3.5 guards
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Guards {
     #[serde(default = "default_mode_block")]
@@ -714,7 +716,7 @@ impl Default for Guards {
 // 3.6 protection
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Protection {
     #[serde(default)]
@@ -729,7 +731,7 @@ pub struct Protection {
     pub integrity: Integrity,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProtectedPath {
     pub id: String,
@@ -738,6 +740,8 @@ pub struct ProtectedPath {
     pub mode: ProtectedMode,
     #[serde(default)]
     pub reason: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 #[derive(
@@ -755,7 +759,7 @@ fn default_mode_approval() -> ProtectedMode {
     ProtectedMode::Approval
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteProtection {
     #[serde(default = "default_mode_approval_str")]
@@ -800,7 +804,7 @@ fn default_allow_patterns() -> Vec<String> {
     ]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PolicyProtection {
     #[serde(default = "default_weakening")]
@@ -835,7 +839,7 @@ fn default_weakening() -> WeakeningMode {
     WeakeningMode::Approval
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Snapshots {
     #[serde(default = "default_true")]
@@ -884,7 +888,7 @@ fn default_max_count() -> i64 {
     100
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Integrity {
     #[serde(default = "default_check_on")]
@@ -934,7 +938,7 @@ fn default_on_violation() -> OnViolation {
 // 3.7 dependencies
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Dependencies {
     #[serde(default = "default_true")]
@@ -960,7 +964,7 @@ pub struct Dependencies {
     pub exceptions: Vec<DepException>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VulnConfig {
     #[serde(default = "default_block_at")]
@@ -973,7 +977,7 @@ pub struct VulnConfig {
     pub include_dev: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LicenseConfig {
     #[serde(default = "default_true")]
@@ -1006,7 +1010,7 @@ impl Default for LicenseConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VersionConfig {
     #[serde(default = "default_true")]
@@ -1045,7 +1049,7 @@ impl Default for VersionConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SourceConfig {
     #[serde(default = "default_true")]
@@ -1072,7 +1076,7 @@ impl Default for SourceConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RiskConfig {
     #[serde(default = "default_install_scripts")]
@@ -1090,7 +1094,7 @@ impl Default for RiskConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NetworkConfig {
     #[serde(default = "default_network_mode")]
@@ -1111,7 +1115,7 @@ impl Default for NetworkConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DepException {
     pub id: String,
@@ -1121,6 +1125,8 @@ pub struct DepException {
     pub reason: String,
     pub expires: String,
     pub request: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 impl Default for Dependencies {
@@ -1223,7 +1229,7 @@ impl Default for VulnConfig {
 // 3.8 docs
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Docs {
     #[serde(default = "default_required_docs")]
@@ -1242,7 +1248,7 @@ pub struct Docs {
     pub generated: Vec<GeneratedDoc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DocCoupling {
     pub id: String,
@@ -1252,9 +1258,23 @@ pub struct DocCoupling {
     pub require_changed: Vec<String>,
     #[serde(default = "default_mode_warn")]
     pub mode: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+impl Default for DocCoupling {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            when_changed: vec![],
+            require_changed: vec![],
+            mode: default_mode_warn(),
+            remove: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Changelog {
     #[serde(default = "default_changelog_file")]
@@ -1267,13 +1287,26 @@ pub struct Changelog {
     pub mode: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+impl Default for Changelog {
+    fn default() -> Self {
+        Self {
+            file: default_changelog_file(),
+            format: default_changelog_format(),
+            require_for: vec![],
+            mode: default_mode_warn(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratedDoc {
     pub id: String,
     pub command: String,
     #[serde(default)]
     pub outputs: Vec<String>,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 impl Default for Docs {
@@ -1316,7 +1349,7 @@ fn default_changelog_format() -> String {
 // 3.9 agents
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Agents {
     #[serde(default = "default_agents_enabled")]
@@ -1329,7 +1362,7 @@ pub struct Agents {
     pub parallel: Parallel,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentGuard {
     #[serde(default = "default_true")]
@@ -1374,7 +1407,7 @@ impl Default for AgentGuard {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StopCheck {
     #[serde(default = "default_true")]
@@ -1395,7 +1428,7 @@ impl Default for StopCheck {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Parallel {
     #[serde(default = "default_parallel_mode")]
@@ -1457,7 +1490,7 @@ fn default_parallel_mode() -> String {
 // 3.10 remote
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Remote {
     #[serde(default = "default_remote_provider")]
@@ -1474,7 +1507,7 @@ pub struct Remote {
     pub github: RemoteGithub,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RemoteGithub {
     #[serde(default = "default_rulesets")]
@@ -1487,6 +1520,18 @@ pub struct RemoteGithub {
     pub ci_runs_on: String,
     #[serde(default)]
     pub push_archive_tags: bool,
+}
+
+impl Default for RemoteGithub {
+    fn default() -> Self {
+        Self {
+            rulesets: default_rulesets(),
+            required_check: default_required_check(),
+            ci_workflow: true,
+            ci_runs_on: default_ci_runs_on(),
+            push_archive_tags: false,
+        }
+    }
 }
 
 impl Default for Remote {
@@ -1525,7 +1570,7 @@ fn default_ci_runs_on() -> String {
 // 3.11 engine
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Engine {
     #[serde(default)]
@@ -1563,16 +1608,19 @@ fn default_engine_on_error() -> String {
 // 3.12 gates
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Gate {
     pub id: String,
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub uses: String,
     #[serde(default)]
     pub with: serde_json::Value,
+    #[serde(default)]
     pub stages: Vec<String>,
     #[serde(default = "default_mode_block")]
     pub mode: Mode,
@@ -1602,15 +1650,26 @@ pub struct Gate {
     pub tags: Vec<String>,
     #[serde(default)]
     pub locked: bool,
+    #[serde(default)]
+    pub remove: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GatePaths {
     #[serde(default = "default_include")]
     pub include: Vec<String>,
     #[serde(default)]
     pub exclude: Vec<String>,
+}
+
+impl Default for GatePaths {
+    fn default() -> Self {
+        Self {
+            include: default_include(),
+            exclude: vec![],
+        }
+    }
 }
 
 fn default_trigger() -> String {
@@ -1636,7 +1695,7 @@ fn default_only_in() -> String {
 // 3.13 waivers
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Waiver {
     pub id: String,
@@ -1647,6 +1706,8 @@ pub struct Waiver {
     pub expires: String,
     #[serde(default)]
     pub request: String,
+    #[serde(default)]
+    pub remove: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1664,9 +1725,41 @@ fn default_mode_block() -> Mode {
 // lock
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Lock {
     #[serde(default)]
     pub keys: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_match_documented_defaults() {
+        let changelog = Changelog::default();
+        assert_eq!(changelog.file, "CHANGELOG.md");
+        assert_eq!(changelog.format, "keep-a-changelog");
+        assert_eq!(changelog.mode, "warn");
+
+        let coupling = DocCoupling::default();
+        assert_eq!(coupling.mode, "warn");
+
+        let github = RemoteGithub::default();
+        assert_eq!(github.rulesets, "auto");
+        assert_eq!(github.required_check, "RepoWill Gates");
+        assert!(github.ci_workflow);
+        assert_eq!(github.ci_runs_on, "ubuntu-latest");
+
+        let paths = GatePaths::default();
+        assert_eq!(paths.include, vec!["**".to_string()]);
+        assert!(paths.exclude.is_empty());
+
+        let policy = Policy::default();
+        assert_eq!(policy.schema_version, 1);
+        assert_eq!(policy.min_repowill_version, "1.0.0");
+        assert_eq!(policy.docs.changelog.file, "CHANGELOG.md");
+        assert_eq!(policy.remote.github.rulesets, "auto");
+    }
 }

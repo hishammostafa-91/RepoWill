@@ -48,6 +48,11 @@ trash = "=5.2.9"
 keyring = "=4.2.0"
 tracing-appender = "=0.2.5"
 tempfile = "=3.27.0"
+toml = "=1.1.8"
+toml_edit = "=0.25.17"
+sha2 = "=0.11.1"
+globset = "=0.4.20"
+regex = "=1.13.1"
 
 [profile.release]
 lto = "thin"

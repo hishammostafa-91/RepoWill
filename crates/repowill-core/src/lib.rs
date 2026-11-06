@@ -4,6 +4,7 @@
 
 pub use repowill_model as model;
 
+pub mod config;
 pub mod platform;
 
 #[cfg(test)]
