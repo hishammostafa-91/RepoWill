@@ -33,3 +33,6 @@ desktop.ini
 # Environment
 .env
 .env.local
+
+# OpenCode local junctions to the private plan vault
+.opencode/
