@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #![forbid(unsafe_code)]
 
+use repowill_core::ops::{self, OpContext};
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{Value, json};
 
 #[derive(Serialize)]
 struct OpResult {
-    op: &'static str,
-    result: serde_json::Value,
+    op: String,
+    result: Value,
 }
 
 #[tauri::command]
-fn rw_op(op: String) -> Result<OpResult, String> {
-    match op.as_str() {
-        "app.version" => Ok(OpResult {
-            op: "app.version",
-            result: json!(env!("CARGO_PKG_VERSION")),
-        }),
-        _ => Err(format!("unknown op: {op}")),
+fn rw_op(op: String, params: Option<Value>) -> Result<OpResult, String> {
+    let ctx = OpContext::new(None);
+    let operation: repowill_model::Operation =
+        serde_json::from_str(&format!("\"{op}\"")).map_err(|_| format!("unknown op: {op}"))?;
+    match ops::execute(operation, params.unwrap_or_else(|| json!({})), &ctx) {
+        Ok(result) => Ok(OpResult { op, result }),
+        Err(error) => Err(serde_json::to_string(&error).unwrap_or(error.message)),
     }
 }
 

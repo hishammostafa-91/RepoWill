@@ -26,6 +26,8 @@ enum CommandKind {
     Licenses,
     /// Generate JSON schema and bindings.
     Gen,
+    /// Check CLI/policy operation parity.
+    Parity,
 }
 
 const PNPM: &str = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
@@ -38,12 +40,14 @@ fn main() -> Result<()> {
         CommandKind::GuiDev => run_gui_dev(),
         CommandKind::Verify => {
             run_check()?;
+            run_parity()?;
             run_test()?;
             println!("verify: OK");
             Ok(())
         }
         CommandKind::Licenses => run_licenses(),
         CommandKind::Gen => run_gen(),
+        CommandKind::Parity => run_parity(),
     }
 }
 
@@ -109,7 +113,72 @@ fn run_gen() -> Result<()> {
         );
     }
     std::fs::write("schemas/policy.schema.json", &output.stdout).context("write schema")?;
+    std::fs::create_dir_all("docs/reference").context("create docs/reference")?;
+    std::fs::write(
+        "docs/reference/cli.md",
+        "# CLI reference\n\nImplemented operations are exposed through `repowill`.\n",
+    )
+    .context("write cli reference")?;
+    std::fs::write(
+        "docs/reference/policy.md",
+        "# Policy reference\n\nSee `docs/config-engine.md` and `schemas/policy.schema.json`.\n",
+    )
+    .context("write policy reference")?;
     println!("gen: OK");
+    Ok(())
+}
+
+fn run_parity() -> Result<()> {
+    println!("== parity ==");
+    for args in [
+        vec!["--help"],
+        vec!["config", "--help"],
+        vec!["policy", "--help"],
+        vec!["op", "--help"],
+    ] {
+        let status = Command::new("cargo")
+            .args(["run", "-q", "-p", "repowill-cli", "--"])
+            .args(&args)
+            .status()
+            .with_context(|| format!("cargo run repowill {}", args.join(" ")))?;
+        if !status.success() {
+            anyhow::bail!("cli help failed for {}", args.join(" "));
+        }
+    }
+    let output = Command::new("cargo")
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "repowill-cli",
+            "--",
+            "op",
+            "{\"op\":\"app.version\"}",
+        ])
+        .output()
+        .context("cargo run repowill op app.version")?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "implemented op failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let status = Command::new("cargo")
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "repowill-cli",
+            "--",
+            "op",
+            "{\"op\":\"project.detect\"}",
+        ])
+        .status()
+        .context("cargo run repowill op project.detect")?;
+    if status.code() != Some(2) {
+        anyhow::bail!("planned op did not exit with code 2");
+    }
+    println!("parity: OK");
     Ok(())
 }
 

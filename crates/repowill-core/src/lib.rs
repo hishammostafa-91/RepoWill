@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 //! RepoWill core behaviour.
 
 pub use repowill_model as model;
+pub use repowill_model::Operation;
 
 pub mod config;
+pub mod ops;
 pub mod platform;
 
 #[cfg(test)]

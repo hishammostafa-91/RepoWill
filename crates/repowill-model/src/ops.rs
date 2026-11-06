@@ -772,12 +772,26 @@ fn operation_meta(op: Operation) -> OperationMeta {
         Operation::AppVersion => ("repowill version", "/settings#about", false, false),
         Operation::AppUpdateCheck => ("repowill update-check", "/settings#about", false, false),
     };
+    let status = match op {
+        Operation::AppVersion
+        | Operation::ConfigGet
+        | Operation::ConfigSet
+        | Operation::ConfigList
+        | Operation::ConfigPath
+        | Operation::PolicyShow
+        | Operation::PolicyValidate
+        | Operation::PolicySchema
+        | Operation::PolicyExplain
+        | Operation::PolicySet
+        | Operation::PolicyDiff => "implemented",
+        _ => "planned",
+    };
     OperationMeta {
         op,
         cli_path,
         gui_route,
         mutating,
         human_only,
-        status: "planned",
+        status,
     }
 }
