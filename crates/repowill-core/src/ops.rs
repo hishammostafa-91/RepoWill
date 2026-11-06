@@ -54,7 +54,7 @@ impl RwError {
     pub fn planned(op: Operation) -> Self {
         Self {
             code: "RW-E1000".to_string(),
-            category: "planned".to_string(),
+            category: "usage".to_string(),
             message: format!("operation {} is available in a later version", op.as_str()),
             hint: Some("upgrade RepoWill or use a released feature".to_string()),
             details: Some(json!({ "op": op.as_str() })),
@@ -125,24 +125,66 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
             details: None,
         });
     }
-    match op {
-        Operation::AppVersion => Ok(json!({ "version": env!("CARGO_PKG_VERSION") })),
-        Operation::ConfigPath => Ok(json!({ "path": app_config_path() })),
-        Operation::ConfigList => config_list(),
-        Operation::ConfigGet => config_get(&params),
-        Operation::ConfigSet => config_set(&params),
-        Operation::PolicyShow => policy_show(ctx, &params),
-        Operation::PolicyValidate => policy_validate(ctx, &params),
-        Operation::PolicySchema => Ok(json!({
-            "schema_version": 1,
-            "engine_version": ENGINE_VERSION,
-            "min_repowill_version": "1.0.0"
-        })),
-        Operation::PolicyExplain => policy_explain(ctx, &params),
-        Operation::PolicySet => policy_set(ctx, &params),
-        Operation::PolicyDiff => policy_diff(ctx, &params),
-        _ => Err(RwError::planned(op)),
-    }
+
+    let run = |params: &Value, ctx: &OpContext| -> Result<Value, RwError> {
+        match op {
+            Operation::AppVersion => Ok(json!({ "version": env!("CARGO_PKG_VERSION") })),
+            Operation::ConfigPath => Ok(json!({ "path": app_config_path() })),
+            Operation::ConfigList => config_list(),
+            Operation::ConfigGet => config_get(params),
+            Operation::ConfigSet => config_set(params),
+            Operation::PolicyShow => policy_show(ctx, params),
+            Operation::PolicyValidate => policy_validate(ctx, params),
+            Operation::PolicySchema => Ok(json!({
+                "schema_version": 1,
+                "engine_version": ENGINE_VERSION,
+                "min_repowill_version": "1.0.0"
+            })),
+            Operation::PolicyExplain => policy_explain(ctx, params),
+            Operation::PolicySet => policy_set(ctx, params),
+            Operation::PolicyDiff => policy_diff(ctx, params),
+            _ => Err(RwError::planned(op)),
+        }
+    };
+
+    ctx.emit(ProgressEvent {
+        op_id: op.as_str().to_string(),
+        step: "operation".to_string(),
+        state: "running".to_string(),
+        pct: 0,
+        message: format!("running {}", op.as_str()),
+        gate: None,
+    });
+
+    let result = if let Some(root) = &ctx.repo_root {
+        let dir = root.join(".repowill");
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(dir.join("ops.lock"))
+        {
+            let mut lock = fd_lock::RwLock::new(file);
+            let _guard = lock.write().ok();
+            run(&params, ctx)
+        } else {
+            run(&params, ctx)
+        }
+    } else {
+        run(&params, ctx)
+    };
+
+    ctx.emit(ProgressEvent {
+        op_id: op.as_str().to_string(),
+        step: "operation".to_string(),
+        state: "done".to_string(),
+        pct: 100,
+        message: format!("finished {}", op.as_str()),
+        gate: None,
+    });
+
+    result
 }
 
 fn app_config_path() -> PathBuf {

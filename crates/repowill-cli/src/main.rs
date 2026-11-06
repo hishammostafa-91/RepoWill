@@ -3,7 +3,7 @@
 
 use clap::{Parser, Subcommand};
 use repowill_core::ops::{self, OpContext};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -13,26 +13,26 @@ use std::path::PathBuf;
     about = "RepoWill: repository rules, gates and guardrails"
 )]
 struct Cli {
-    #[arg(short = 'C', long = "repo")]
+    #[arg(short = 'C', long = "repo", global = true)]
     repo: Option<PathBuf>,
-    #[arg(long)]
+    #[arg(long, global = true)]
     json: bool,
-    #[arg(long)]
+    #[arg(long, global = true)]
     progress: bool,
-    #[arg(short = 'y', long = "yes")]
+    #[arg(short = 'y', long = "yes", global = true)]
     yes: bool,
-    #[arg(long)]
+    #[arg(long, global = true)]
     non_interactive: bool,
-    #[arg(long)]
+    #[arg(long, global = true)]
     profile: Option<String>,
-    #[arg(short, long, action = clap::ArgAction::Count)]
+    #[arg(short, long, action = clap::ArgAction::Count, global = true)]
     verbose: u8,
-    #[arg(long, default_value = "auto")]
+    #[arg(long, default_value = "auto", global = true)]
     color: String,
-    #[arg(long)]
+    #[arg(long, global = true)]
     no_network: bool,
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -40,14 +40,25 @@ enum Commands {
     /// Print version information.
     Version,
     /// Manage RepoWill configuration.
+    #[command(
+        after_help = "Examples:\n  repowill config path\n  repowill config get --key theme\n  repowill config set --key theme --value dark"
+    )]
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
     /// Inspect and edit repository policy.
+    #[command(
+        after_help = "Examples:\n  repowill policy validate\n  repowill policy show\n  repowill policy schema"
+    )]
     Policy {
         #[command(subcommand)]
         command: PolicyCommand,
+    },
+    /// Run a raw operation from JSON.
+    Op {
+        /// JSON request, or @path to read it from a file.
+        request: String,
     },
 }
 
@@ -111,8 +122,101 @@ fn run(cli: Cli) -> i32 {
         });
     }
 
-    let (op, params) = match cli.command {
+    let command = match cli.command {
+        Some(command) => command,
+        None => {
+            use clap::CommandFactory;
+            Cli::command().print_help().ok();
+            println!();
+            return 0;
+        }
+    };
+
+    if let Commands::Op { request } = command {
+        let text = if let Some(path) = request.strip_prefix('@') {
+            match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                Err(error) => {
+                    eprintln!("RW-E1004: cannot read request file: {error}");
+                    return 2;
+                }
+            }
+        } else {
+            request.clone()
+        };
+        let value: Value = match serde_json::from_str(&text) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("RW-E1004: invalid JSON request: {error}");
+                return 2;
+            }
+        };
+        let op_str = match value.get("op").and_then(Value::as_str) {
+            Some(op) => op,
+            None => {
+                eprintln!("RW-E1004: request is missing `op`");
+                return 2;
+            }
+        };
+        let op: repowill_core::Operation = match serde_json::from_str(&format!("\"{op_str}\"")) {
+            Ok(op) => op,
+            Err(_) => {
+                eprintln!("RW-E1004: unknown operation `{op_str}`");
+                return 2;
+            }
+        };
+        let params = value.get("params").cloned().unwrap_or_else(|| json!({}));
+        let ctx = OpContext::new(repo_root.clone());
+        match ops::execute(op, params, &ctx) {
+            Ok(data) => {
+                if cli.json {
+                    let envelope = json!({
+                        "ok": true,
+                        "op": op.as_str(),
+                        "repowill": env!("CARGO_PKG_VERSION"),
+                        "api": 1,
+                        "data": data,
+                        "warnings": [],
+                        "error": null
+                    });
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&envelope).unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
+                return 0;
+            }
+            Err(error) => {
+                if cli.json {
+                    let envelope = json!({
+                        "ok": false,
+                        "op": op.as_str(),
+                        "repowill": env!("CARGO_PKG_VERSION"),
+                        "api": 1,
+                        "data": null,
+                        "warnings": [],
+                        "error": error
+                    });
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&envelope).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
+                return error.exit_code();
+            }
+        }
+    }
+
+    let (op, params) = match command {
         Commands::Version => (repowill_core::Operation::AppVersion, json!({})),
+        Commands::Op { .. } => unreachable!(),
         Commands::Config { command } => match command {
             ConfigCommand::Get { key } => {
                 (repowill_core::Operation::ConfigGet, json!({ "key": key }))

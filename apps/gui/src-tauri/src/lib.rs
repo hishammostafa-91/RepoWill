@@ -15,7 +15,7 @@ struct OpResult {
 fn rw_op(op: String, params: Option<Value>) -> Result<OpResult, String> {
     let ctx = OpContext::new(None);
     let operation: repowill_model::Operation =
-        serde_json::from_str(&format!("\"{op}\"")).unwrap_or(repowill_model::Operation::AppVersion);
+        serde_json::from_str(&format!("\"{op}\"")).map_err(|_| format!("unknown op: {op}"))?;
     match ops::execute(operation, params.unwrap_or_else(|| json!({})), &ctx) {
         Ok(result) => Ok(OpResult { op, result }),
         Err(error) => Err(serde_json::to_string(&error).unwrap_or(error.message)),

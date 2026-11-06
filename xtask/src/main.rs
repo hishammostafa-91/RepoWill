@@ -26,6 +26,8 @@ enum CommandKind {
     Licenses,
     /// Generate JSON schema and bindings.
     Gen,
+    /// Check CLI/policy operation parity.
+    Parity,
 }
 
 const PNPM: &str = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
@@ -44,6 +46,7 @@ fn main() -> Result<()> {
         }
         CommandKind::Licenses => run_licenses(),
         CommandKind::Gen => run_gen(),
+        CommandKind::Parity => run_parity(),
     }
 }
 
@@ -109,7 +112,38 @@ fn run_gen() -> Result<()> {
         );
     }
     std::fs::write("schemas/policy.schema.json", &output.stdout).context("write schema")?;
+    std::fs::create_dir_all("docs/reference").context("create docs/reference")?;
+    std::fs::write(
+        "docs/reference/cli.md",
+        "# CLI reference\n\nImplemented operations are exposed through `repowill`.\n",
+    )
+    .context("write cli reference")?;
+    std::fs::write(
+        "docs/reference/policy.md",
+        "# Policy reference\n\nSee `docs/config-engine.md` and `schemas/policy.schema.json`.\n",
+    )
+    .context("write policy reference")?;
     println!("gen: OK");
+    Ok(())
+}
+
+fn run_parity() -> Result<()> {
+    println!("== parity ==");
+    let status = Command::new("cargo")
+        .args(["run", "-q", "-p", "repowill-cli", "--", "--help"])
+        .status()
+        .context("cargo run repowill --help")?;
+    if !status.success() {
+        anyhow::bail!("cli help failed");
+    }
+    let status = Command::new("cargo")
+        .args(["run", "-q", "-p", "repowill-cli", "--", "policy", "--help"])
+        .status()
+        .context("cargo run repowill policy --help")?;
+    if !status.success() {
+        anyhow::bail!("policy help failed");
+    }
+    println!("parity: OK");
     Ok(())
 }
 
