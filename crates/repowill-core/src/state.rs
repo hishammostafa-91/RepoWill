@@ -104,6 +104,63 @@ impl StateStore {
         self.root.join("audit.jsonl")
     }
 
+    pub fn token_dir(&self) -> PathBuf {
+        self.root.join("tokens")
+    }
+
+    pub fn create_token(&self, ttl_seconds: u64) -> Result<String, String> {
+        self.ensure()?;
+        let id = format!("{}-{}", std::process::id(), self.next_request_id()?);
+        let expires_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            + ttl_seconds;
+        let value = serde_json::json!({ "id": id, "expires_at": expires_at });
+        std::fs::create_dir_all(self.token_dir()).map_err(|error| error.to_string())?;
+        atomic_write(
+            &self.token_dir().join(format!("{id}.json")),
+            serde_json::to_string(&value).unwrap().as_bytes(),
+        )?;
+        Ok(id)
+    }
+
+    pub fn consume_token(&self, token: &str) -> Result<bool, String> {
+        let path = self.token_dir().join(format!("{token}.json"));
+        if !path.exists() {
+            return Ok(false);
+        }
+        let text = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let value: Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let expires_at = value.get("expires_at").and_then(Value::as_u64).unwrap_or(0);
+        let _ = std::fs::remove_file(&path);
+        Ok(expires_at >= now)
+    }
+
+    pub fn ledger_dir(&self) -> PathBuf {
+        self.root.join("ledger")
+    }
+
+    pub fn metrics_path(&self) -> PathBuf {
+        self.root.join("metrics.jsonl")
+    }
+
+    pub fn integrity_path(&self) -> PathBuf {
+        self.root.join("integrity.json")
+    }
+
+    pub fn runs_dir(&self) -> PathBuf {
+        self.root.join("runs")
+    }
+
+    pub fn backups_dir(&self) -> PathBuf {
+        self.root.join("backups")
+    }
+
     pub fn append_audit(&self, key: &[u8], entry: &Value) -> Result<(), String> {
         let mut chain = String::new();
         if self.audit_path().exists() {
