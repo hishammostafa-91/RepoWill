@@ -114,7 +114,7 @@ pub fn discover_top_level(start: &Path) -> Result<PathBuf, String> {
     let git = Git::new()?;
     let result = git.run(&["rev-parse", "--show-toplevel"], Some(start))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     Ok(PathBuf::from(result.stdout.trim()))
 }
@@ -123,18 +123,28 @@ pub fn common_dir(start: &Path) -> Result<PathBuf, String> {
     let git = Git::new()?;
     let result = git.run(&["rev-parse", "--git-common-dir"], Some(start))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
-    Ok(PathBuf::from(result.stdout.trim()))
+    let path = PathBuf::from(result.stdout.trim());
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(start.join(path))
+    }
 }
 
 pub fn hooks_path(start: &Path) -> Result<PathBuf, String> {
     let git = Git::new()?;
     let result = git.run(&["rev-parse", "--git-path", "hooks"], Some(start))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
-    Ok(PathBuf::from(result.stdout.trim()))
+    let path = PathBuf::from(result.stdout.trim());
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(start.join(path))
+    }
 }
 
 pub fn split_nul(text: &str) -> Vec<String> {
@@ -145,29 +155,53 @@ pub fn split_nul(text: &str) -> Vec<String> {
 }
 
 pub fn is_zero_oid(oid: &str) -> bool {
-    !oid.is_empty() && oid.chars().all(|character| character == '0')
+    (oid.len() == 40 || oid.len() == 64) && oid.chars().all(|character| character == '0')
 }
 
 pub fn validate_oid(oid: &str) -> bool {
     (oid.len() == 40 || oid.len() == 64)
-        && oid.chars().all(|character| character.is_ascii_hexdigit())
+        && oid
+            .chars()
+            .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character))
 }
 
 pub fn validate_ref_name(name: &str) -> bool {
-    if name.is_empty() || name.starts_with('/') || name.ends_with('/') || name.contains("..") {
+    if name.is_empty() || name == "@" {
+        return false;
+    }
+    if name.starts_with('/') || name.ends_with('/') || name.starts_with('.') || name.ends_with('.')
+    {
+        return false;
+    }
+    if name.contains("..")
+        || name.contains("//")
+        || name.contains("@{")
+        || name.contains('\\')
+        || name.contains(' ')
+    {
         return false;
     }
     if name.chars().any(|character| {
         character.is_control()
-            || character == ' '
             || character == '~'
             || character == '^'
             || character == ':'
+            || character == '?'
+            || character == '*'
+            || character == '['
     }) {
         return false;
     }
-    if name.contains("@{") || name == "@" || name.contains('\\') {
+    if name.ends_with(".lock") {
         return false;
+    }
+    for part in name.split('/') {
+        if part.is_empty() || part == "." || part == ".." {
+            return false;
+        }
+        if part.starts_with('.') || part.ends_with('.') {
+            return false;
+        }
     }
     true
 }
@@ -175,7 +209,7 @@ pub fn validate_ref_name(name: &str) -> bool {
 pub fn rev_parse(git: &Git, repo: &Path, rev: &str) -> Result<String, String> {
     let result = git.run(&["rev-parse", rev], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     Ok(result.stdout.trim().to_string())
 }
@@ -183,7 +217,7 @@ pub fn rev_parse(git: &Git, repo: &Path, rev: &str) -> Result<String, String> {
 pub fn merge_base(git: &Git, repo: &Path, left: &str, right: &str) -> Result<String, String> {
     let result = git.run(&["merge-base", left, right], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     Ok(result.stdout.trim().to_string())
 }
@@ -208,7 +242,7 @@ pub fn is_ancestor(
 pub fn show_blob(git: &Git, repo: &Path, spec: &str) -> Result<String, String> {
     let result = git.run(&["show", spec], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     Ok(result.stdout)
 }
@@ -216,7 +250,7 @@ pub fn show_blob(git: &Git, repo: &Path, spec: &str) -> Result<String, String> {
 pub fn write_tree(git: &Git, repo: &Path) -> Result<String, String> {
     let result = git.run(&["write-tree"], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     Ok(result.stdout.trim().to_string())
 }
@@ -233,7 +267,7 @@ pub fn config_get(git: &Git, repo: &Path, key: &str) -> Result<Option<String>, S
 pub fn config_set(git: &Git, repo: &Path, key: &str, value: &str) -> Result<(), String> {
     let result = git.run(&["config", key, value], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     Ok(())
 }
@@ -241,7 +275,7 @@ pub fn config_set(git: &Git, repo: &Path, key: &str, value: &str) -> Result<(), 
 pub fn worktrees(git: &Git, repo: &Path) -> Result<Vec<PathBuf>, String> {
     let result = git.run(&["worktree", "list", "--porcelain"], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     let mut out = Vec::new();
     for line in result.stdout.lines() {
@@ -255,7 +289,7 @@ pub fn worktrees(git: &Git, repo: &Path) -> Result<Vec<PathBuf>, String> {
 pub fn commit_trailers(git: &Git, repo: &Path, rev: &str) -> Result<Vec<(String, String)>, String> {
     let result = git.run(&["show", "-s", "--format=%B", rev], Some(repo))?;
     if result.code != Some(0) {
-        return Err(result.stderr.trim().to_string());
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     let mut trailers = Vec::new();
     for line in result.stdout.lines() {
@@ -273,6 +307,107 @@ pub fn commit_trailers(git: &Git, repo: &Path, rev: &str) -> Result<Vec<(String,
         }
     }
     Ok(trailers)
+}
+
+pub fn refs(git: &Git, repo: &Path) -> Result<Vec<String>, String> {
+    let result = git.run(&["show-ref"], Some(repo))?;
+    if result.code == Some(1) {
+        return Ok(Vec::new());
+    }
+    if result.code != Some(0) {
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
+    }
+    Ok(result
+        .stdout
+        .lines()
+        .filter_map(|line| line.split_whitespace().nth(1).map(str::to_string))
+        .collect())
+}
+
+pub fn rev_list(git: &Git, repo: &Path, range: &str) -> Result<Vec<String>, String> {
+    let result = git.run(&["rev-list", range], Some(repo))?;
+    if result.code != Some(0) {
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
+    }
+    Ok(result.stdout.lines().map(str::to_string).collect())
+}
+
+pub fn name_status(
+    git: &Git,
+    repo: &Path,
+    range: &str,
+    cached: bool,
+) -> Result<Vec<(char, String, Option<String>)>, String> {
+    let mut args = vec!["diff", "--name-status", "-z", "-M"];
+    if cached {
+        args.push("--cached");
+    }
+    if !range.is_empty() {
+        args.push(range);
+    }
+    let result = git.run(&args, Some(repo))?;
+    if result.code != Some(0) {
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
+    }
+    let tokens = split_nul(&result.stdout);
+    let mut out = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        let status = tokens[index].as_str();
+        index += 1;
+        let code = status.chars().next().unwrap_or('?');
+        if code == 'R' || code == 'C' {
+            if index + 1 >= tokens.len() {
+                break;
+            }
+            let old = tokens[index].clone();
+            index += 1;
+            let new = tokens[index].clone();
+            index += 1;
+            out.push((code, new, Some(old)));
+        } else {
+            if index >= tokens.len() {
+                break;
+            }
+            let path = tokens[index].clone();
+            index += 1;
+            out.push((code, path, None));
+        }
+    }
+    Ok(out)
+}
+
+pub fn numstat(
+    git: &Git,
+    repo: &Path,
+    range: &str,
+    cached: bool,
+) -> Result<Vec<(String, String, String)>, String> {
+    let mut args = vec!["diff", "--numstat", "-z"];
+    if cached {
+        args.push("--cached");
+    }
+    if !range.is_empty() {
+        args.push(range);
+    }
+    let result = git.run(&args, Some(repo))?;
+    if result.code != Some(0) {
+        return Err(format!("RW-G0003: {}", result.stderr.trim()));
+    }
+    let mut out = Vec::new();
+    for record in result.stdout.split('\0') {
+        if record.is_empty() {
+            continue;
+        }
+        let mut parts = record.splitn(3, '\t');
+        let added = parts.next().unwrap_or("").to_string();
+        let deleted = parts.next().unwrap_or("").to_string();
+        let path = parts.next().unwrap_or("").to_string();
+        if !path.is_empty() {
+            out.push((added, deleted, path));
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

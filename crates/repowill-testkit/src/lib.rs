@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-#![forbid(unsafe_code)]
+#![allow(unsafe_code)]
 
 //! Test helpers for RepoWill.
 
@@ -13,7 +13,10 @@ mod tests {
 
     #[test]
     fn temp_repo_builds() {
-        let repo = TempRepo::new().with_main().commit("feat: initial", &[("README.md", "# demo\n")]).branch("feat/test");
+        let repo = TempRepo::new()
+            .with_main()
+            .commit("feat: initial", &[("README.md", "# demo\n")])
+            .branch("feat/test");
         assert!(repo.path().join(".git").exists());
         assert!(repo.path().join("README.md").exists());
     }
@@ -36,7 +39,34 @@ impl TempRepo {
         run_git(&self.path, &["config", "user.name", "RepoWill Test"]);
         run_git(&self.path, &["config", "user.email", "test@example.com"]);
         run_git(&self.path, &["config", "core.autocrlf", "false"]);
+        run_git(&self.path, &["config", "commit.gpgsign", "false"]);
+        run_git(&self.path, &["config", "tag.gpgsign", "false"]);
         self
+    }
+
+    pub fn with_main_sha256(mut self) -> Self {
+        run_git(
+            &self.path,
+            &["init", "-b", "main", "--object-format=sha256"],
+        );
+        run_git(&self.path, &["config", "user.name", "RepoWill Test"]);
+        run_git(&self.path, &["config", "user.email", "test@example.com"]);
+        run_git(&self.path, &["config", "core.autocrlf", "false"]);
+        run_git(&self.path, &["config", "commit.gpgsign", "false"]);
+        run_git(&self.path, &["config", "tag.gpgsign", "false"]);
+        self
+    }
+
+    pub fn install_hooks(&self, repowill_binary: &Path) {
+        let hooks = self.path.join(".git").join("hooks");
+        std::fs::create_dir_all(&hooks).expect("hooks dir");
+        let shim = format!(
+            "#!/bin/sh\nexec \"{}\" hook dispatch \"$@\"\n",
+            repowill_binary.display()
+        );
+        for name in ["pre-commit", "commit-msg", "pre-push"] {
+            std::fs::write(hooks.join(name), &shim).expect("write hook");
+        }
     }
 
     pub fn commit(mut self, subject: &str, files: &[(&str, &str)]) -> Self {
@@ -115,10 +145,26 @@ pub struct AgentEnv {
 
 impl AgentEnv {
     pub fn agent() -> Self {
-        Self { is_agent: true }
+        let env = Self { is_agent: true };
+        env.apply();
+        env
     }
 
     pub fn human() -> Self {
-        Self { is_agent: false }
+        let env = Self { is_agent: false };
+        env.apply();
+        env
+    }
+
+    pub fn apply(&self) {
+        if self.is_agent {
+            unsafe {
+                std::env::set_var("REPOWILL_AGENT", "1");
+            }
+        } else {
+            unsafe {
+                std::env::remove_var("REPOWILL_AGENT");
+            }
+        }
     }
 }
