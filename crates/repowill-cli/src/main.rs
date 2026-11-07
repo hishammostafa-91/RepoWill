@@ -56,6 +56,12 @@ enum Commands {
         #[command(subcommand)]
         command: PolicyCommand,
     },
+    /// Inspect repository audit log.
+    #[command(after_help = "Examples:\n  repowill audit verify")]
+    Audit {
+        #[command(subcommand)]
+        command: AuditCommand,
+    },
     /// Run a raw operation from JSON.
     #[command(after_help = "Examples:\n  repowill op '{\"op\":\"app.version\"}'")]
     Op {
@@ -125,6 +131,14 @@ enum PolicyCommand {
         #[arg(long)]
         to: Option<PathBuf>,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum AuditCommand {
+    #[command(after_help = "Examples:\n  repowill audit verify")]
+    Verify,
+    #[command(after_help = "Examples:\n  repowill audit log")]
+    Log,
 }
 
 fn main() {
@@ -241,9 +255,69 @@ fn run(cli: Cli) -> i32 {
         }
     }
 
+    if let Commands::Audit { command } = command {
+        let (op, params) = match command {
+            AuditCommand::Verify => (repowill_core::Operation::AuditVerify, json!({})),
+            AuditCommand::Log => (repowill_core::Operation::AuditLog, json!({})),
+        };
+        let mut ctx = OpContext::new(repo_root.clone());
+        if cli.json && cli.progress {
+            ctx = ctx.with_progress(|event| {
+                let line = serde_json::to_string(&event).unwrap_or_default();
+                eprintln!("{line}");
+            });
+        }
+        match ops::execute(op, params, &ctx) {
+            Ok(data) => {
+                if cli.json {
+                    let envelope = json!({
+                        "ok": true,
+                        "op": op.as_str(),
+                        "repowill": env!("CARGO_PKG_VERSION"),
+                        "api": 1,
+                        "data": data,
+                        "warnings": [],
+                        "error": null
+                    });
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&envelope).unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
+                return 0;
+            }
+            Err(error) => {
+                if cli.json {
+                    let envelope = json!({
+                        "ok": false,
+                        "op": op.as_str(),
+                        "repowill": env!("CARGO_PKG_VERSION"),
+                        "api": 1,
+                        "data": null,
+                        "warnings": [],
+                        "error": error
+                    });
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&envelope).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
+                return error.exit_code();
+            }
+        }
+    }
+
     let (op, params) = match command {
         Commands::Version => (repowill_core::Operation::AppVersion, json!({})),
         Commands::Op { .. } => unreachable!(),
+        Commands::Audit { .. } => unreachable!(),
         Commands::Config { command } => match command {
             ConfigCommand::Get { key } => {
                 (repowill_core::Operation::ConfigGet, json!({ "key": key }))

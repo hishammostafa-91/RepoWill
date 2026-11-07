@@ -10,6 +10,8 @@ use crate::config::strictness::semantic_diff;
 use crate::config::{
     ENGINE_VERSION, builtin_policy, load_policy_file, policy_to_toml, validate, validate_source,
 };
+use crate::git;
+use crate::state::{KeyStore, StateStore};
 use repowill_model::Operation;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -112,6 +114,8 @@ pub fn implemented_ops() -> &'static [Operation] {
         Operation::PolicyExplain,
         Operation::PolicySet,
         Operation::PolicyDiff,
+        Operation::AuditLog,
+        Operation::AuditVerify,
     ]
 }
 
@@ -143,6 +147,8 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
             Operation::PolicyExplain => policy_explain(ctx, params),
             Operation::PolicySet => policy_set(ctx, params),
             Operation::PolicyDiff => policy_diff(ctx, params),
+            Operation::AuditLog => audit_log(ctx, params),
+            Operation::AuditVerify => audit_verify(ctx),
             _ => Err(RwError::planned(op)),
         }
     };
@@ -473,6 +479,42 @@ fn policy_error(error: impl std::fmt::Display) -> RwError {
         hint: None,
         details: None,
     }
+}
+
+fn state_store(ctx: &OpContext) -> StateStore {
+    if let Some(root) = &ctx.repo_root
+        && let Ok(common) = git::common_dir(root)
+    {
+        return StateStore::from_common_dir(&common);
+    }
+    if let Some(root) = &ctx.repo_root {
+        return StateStore::from_common_dir(&root.join(".git"));
+    }
+    StateStore::from_common_dir(&std::env::current_dir().unwrap_or_default())
+}
+
+fn audit_log(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let store = state_store(ctx);
+    store.ensure().map_err(policy_error)?;
+    let key = KeyStore::new(KeyStore::default_path())
+        .load_or_create()
+        .map_err(policy_error)?;
+    let entry = params
+        .get("entry")
+        .cloned()
+        .unwrap_or_else(|| params.clone());
+    store.append_audit(&key, &entry).map_err(policy_error)?;
+    Ok(json!({ "ok": true }))
+}
+
+fn audit_verify(ctx: &OpContext) -> Result<Value, RwError> {
+    let store = state_store(ctx);
+    store.ensure().map_err(policy_error)?;
+    let key = KeyStore::new(KeyStore::default_path())
+        .load_or_create()
+        .map_err(policy_error)?;
+    let valid = store.verify_audit(&key).map_err(policy_error)?;
+    Ok(json!({ "valid": valid }))
 }
 
 fn json_to_toml_value(value: &Value) -> toml::Value {
