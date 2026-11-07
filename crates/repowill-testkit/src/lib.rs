@@ -7,6 +7,18 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_repo_builds() {
+        let repo = TempRepo::new().with_main().commit("feat: initial", &[("README.md", "# demo\n")]).branch("feat/test");
+        assert!(repo.path().join(".git").exists());
+        assert!(repo.path().join("README.md").exists());
+    }
+}
+
 pub struct TempRepo {
     _dir: TempDir,
     path: PathBuf,
