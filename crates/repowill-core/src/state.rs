@@ -4,7 +4,7 @@
 //! Repository state store under `<git-common-dir>/repowill/`.
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -108,24 +108,59 @@ impl StateStore {
         self.root.join("tokens")
     }
 
-    pub fn create_token(&self, ttl_seconds: u64) -> Result<String, String> {
+    pub fn create_token(
+        &self,
+        purpose: &str,
+        target: &str,
+        expected_old: Option<&str>,
+        expected_new: Option<&str>,
+        ttl_seconds: u64,
+    ) -> Result<String, String> {
+        if ttl_seconds == 0 || ttl_seconds > 120 {
+            return Err("token TTL must be between 1 and 120 seconds".to_string());
+        }
         self.ensure()?;
-        let id = format!("{}-{}", std::process::id(), self.next_request_id()?);
+        let key = KeyStore::new(KeyStore::default_path())
+            .load_or_create()
+            .map_err(|error| error.to_string())?;
+        let id = uuid::Uuid::new_v4().to_string();
         let expires_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs()
             + ttl_seconds;
-        let value = serde_json::json!({ "id": id, "expires_at": expires_at });
+        let mut token = serde_json::json!({
+            "purpose": purpose,
+            "target": target,
+            "expected_old": expected_old,
+            "expected_new": expected_new,
+            "expires_at": expires_at,
+        });
+        let payload = serde_json::to_string(&token).map_err(|error| error.to_string())?;
+        let mac = hex_encode(&hmac_sha256(&key, payload.as_bytes()));
+        if let Some(map) = token.as_object_mut() {
+            map.insert("mac".to_string(), Value::String(mac));
+        }
         std::fs::create_dir_all(self.token_dir()).map_err(|error| error.to_string())?;
         atomic_write(
             &self.token_dir().join(format!("{id}.json")),
-            serde_json::to_string(&value).unwrap().as_bytes(),
+            serde_json::to_string(&token).unwrap().as_bytes(),
         )?;
         Ok(id)
     }
 
     pub fn consume_token(&self, token: &str) -> Result<bool, String> {
+        self.consume_token_with(token, None, None, None, None)
+    }
+
+    pub fn consume_token_with(
+        &self,
+        token: &str,
+        expected_purpose: Option<&str>,
+        expected_target: Option<&str>,
+        expected_old: Option<&str>,
+        expected_new: Option<&str>,
+    ) -> Result<bool, String> {
         let path = self.token_dir().join(format!("{token}.json"));
         if !path.exists() {
             return Ok(false);
@@ -137,8 +172,21 @@ impl StateStore {
             .unwrap_or_default()
             .as_secs();
         let expires_at = value.get("expires_at").and_then(Value::as_u64).unwrap_or(0);
+        let valid = expires_at >= now
+            && expected_purpose
+                .map(|purpose| value.get("purpose").and_then(Value::as_str) == Some(purpose))
+                .unwrap_or(true)
+            && expected_target
+                .map(|target| value.get("target").and_then(Value::as_str) == Some(target))
+                .unwrap_or(true)
+            && expected_old
+                .map(|old| value.get("expected_old").and_then(Value::as_str) == Some(old))
+                .unwrap_or(true)
+            && expected_new
+                .map(|new| value.get("expected_new").and_then(Value::as_str) == Some(new))
+                .unwrap_or(true);
         let _ = std::fs::remove_file(&path);
-        Ok(expires_at >= now)
+        Ok(valid)
     }
 
     pub fn ledger_dir(&self) -> PathBuf {
@@ -167,9 +215,22 @@ impl StateStore {
             chain = fs::read_to_string(self.audit_path()).map_err(|error| error.to_string())?;
         }
         let prev_hash = last_audit_hash(&chain);
+        let seq = chain.lines().filter(|line| !line.trim().is_empty()).count() as u64 + 1;
+        let at = time::OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
         let mut object = entry.clone();
         if let Some(map) = object.as_object_mut() {
-            map.insert("prev_hash".to_string(), Value::String(prev_hash.clone()));
+            map.entry("seq".to_string()).or_insert_with(|| json!(seq));
+            map.entry("at".to_string())
+                .or_insert_with(|| Value::String(at.clone()));
+            map.entry("actor")
+                .or_insert_with(|| json!({"kind":"system","agent":null,"os_user":null}));
+            map.entry("event")
+                .or_insert_with(|| Value::String("audit.entry".to_string()));
+            map.entry("subject").or_insert_with(|| json!({}));
+            map.entry("details").or_insert_with(|| json!({}));
+            map.insert("prev".to_string(), Value::String(prev_hash.clone()));
         }
         let payload = serde_json::to_string(&object).map_err(|error| error.to_string())?;
         let entry_hash = sha256_hex(payload.as_bytes());
@@ -177,7 +238,7 @@ impl StateStore {
         let mac_hex = hex_encode(&mac);
         let mut final_object = object;
         if let Some(map) = final_object.as_object_mut() {
-            map.insert("entry_hash".to_string(), Value::String(entry_hash));
+            map.insert("hash".to_string(), Value::String(entry_hash));
             map.insert("mac".to_string(), Value::String(mac_hex));
         }
         let line = serde_json::to_string(&final_object).map_err(|error| error.to_string())?;
@@ -192,8 +253,12 @@ impl StateStore {
     }
 
     pub fn verify_audit(&self, key: &[u8]) -> Result<bool, String> {
+        Ok(self.verify_audit_index(key)?.is_none())
+    }
+
+    pub fn verify_audit_index(&self, key: &[u8]) -> Result<Option<u64>, String> {
         if !self.audit_path().exists() {
-            return Ok(true);
+            return Ok(None);
         }
         let text = fs::read_to_string(self.audit_path()).map_err(|error| error.to_string())?;
         let mut prev = "GENESIS".to_string();
@@ -202,32 +267,30 @@ impl StateStore {
                 continue;
             }
             let value: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
-            let entry_hash = value
-                .get("entry_hash")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let seq = value.get("seq").and_then(Value::as_u64).unwrap_or(0);
+            let entry_hash = value.get("hash").and_then(Value::as_str).unwrap_or("");
             let mac = value.get("mac").and_then(Value::as_str).unwrap_or("");
-            let prev_hash = value.get("prev_hash").and_then(Value::as_str).unwrap_or("");
+            let prev_hash = value.get("prev").and_then(Value::as_str).unwrap_or("");
             if prev_hash != prev {
-                return Ok(false);
+                return Ok(Some(seq));
             }
             let mut object = value.clone();
             if let Some(map) = object.as_object_mut() {
-                map.remove("entry_hash");
+                map.remove("hash");
                 map.remove("mac");
             }
             let payload = serde_json::to_string(&object).map_err(|error| error.to_string())?;
             let expected_hash = sha256_hex(payload.as_bytes());
             if expected_hash != entry_hash {
-                return Ok(false);
+                return Ok(Some(seq));
             }
             let expected_mac = hex_encode(&hmac_sha256(key, entry_hash.as_bytes()));
             if expected_mac != mac {
-                return Ok(false);
+                return Ok(Some(seq));
             }
             prev = entry_hash.to_string();
         }
-        Ok(true)
+        Ok(None)
     }
 }
 
@@ -238,7 +301,7 @@ fn last_audit_hash(chain: &str) -> String {
             continue;
         }
         if let Ok(value) = serde_json::from_str::<Value>(line)
-            && let Some(hash) = value.get("entry_hash").and_then(Value::as_str)
+            && let Some(hash) = value.get("hash").and_then(Value::as_str)
         {
             last = hash.to_string();
         }
@@ -247,10 +310,7 @@ fn last_audit_hash(chain: &str) -> String {
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let temp = path.with_extension("tmp");
-    fs::write(&temp, bytes).map_err(|error| error.to_string())?;
-    fs::rename(&temp, path).map_err(|error| error.to_string())?;
-    Ok(())
+    crate::platform::fs::atomic_write(path, bytes)
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -327,20 +387,11 @@ impl KeyStore {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
-        let seed = format!(
-            "{}:{}:{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos(),
-            std::process::id(),
-            self.path.display()
-        );
-        let mut hasher = Sha256::new();
-        hasher.update(seed.as_bytes());
-        let key = hasher.finalize().to_vec();
-        std::fs::write(&self.path, &key).map_err(|error| error.to_string())?;
-        Ok(key)
+        let mut key = [0u8; 32];
+        getrandom::fill(&mut key).map_err(|error| error.to_string())?;
+        std::fs::write(&self.path, key).map_err(|error| error.to_string())?;
+        let _ = crate::platform::fs::set_restrictive_permissions(&self.path);
+        Ok(key.to_vec())
     }
 }
 

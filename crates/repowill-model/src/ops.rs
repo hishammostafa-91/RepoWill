@@ -785,7 +785,8 @@ fn operation_meta(op: Operation) -> OperationMeta {
         | Operation::PolicySet
         | Operation::PolicyDiff
         | Operation::AuditLog
-        | Operation::AuditVerify => "implemented",
+        | Operation::AuditVerify
+        | Operation::AuditExport => "implemented",
         _ => "planned",
     };
     OperationMeta {

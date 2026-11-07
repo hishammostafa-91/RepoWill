@@ -116,6 +116,7 @@ pub fn implemented_ops() -> &'static [Operation] {
         Operation::PolicyDiff,
         Operation::AuditLog,
         Operation::AuditVerify,
+        Operation::AuditExport,
     ]
 }
 
@@ -149,6 +150,7 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
             Operation::PolicyDiff => policy_diff(ctx, params),
             Operation::AuditLog => audit_log(ctx, params),
             Operation::AuditVerify => audit_verify(ctx),
+            Operation::AuditExport => audit_export(ctx, params),
             _ => Err(RwError::planned(op)),
         }
     };
@@ -493,18 +495,20 @@ fn state_store(ctx: &OpContext) -> StateStore {
     StateStore::from_common_dir(&std::env::current_dir().unwrap_or_default())
 }
 
-fn audit_log(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+fn audit_log(ctx: &OpContext, _params: &Value) -> Result<Value, RwError> {
     let store = state_store(ctx);
     store.ensure().map_err(policy_error)?;
-    let key = KeyStore::new(KeyStore::default_path())
-        .load_or_create()
-        .map_err(policy_error)?;
-    let entry = params
-        .get("entry")
-        .cloned()
-        .unwrap_or_else(|| params.clone());
-    store.append_audit(&key, &entry).map_err(policy_error)?;
-    Ok(json!({ "ok": true }))
+    let entries = if store.audit_path().exists() {
+        std::fs::read_to_string(store.audit_path())
+            .map_err(policy_error)?
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str::<Value>(line).unwrap_or(Value::Null))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    Ok(json!({ "entries": entries }))
 }
 
 fn audit_verify(ctx: &OpContext) -> Result<Value, RwError> {
@@ -513,8 +517,29 @@ fn audit_verify(ctx: &OpContext) -> Result<Value, RwError> {
     let key = KeyStore::new(KeyStore::default_path())
         .load_or_create()
         .map_err(policy_error)?;
-    let valid = store.verify_audit(&key).map_err(policy_error)?;
-    Ok(json!({ "valid": valid }))
+    let tampered = store.verify_audit_index(&key).map_err(policy_error)?;
+    Ok(json!({ "valid": tampered.is_none(), "tampered_entry": tampered }))
+}
+
+fn audit_export(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let store = state_store(ctx);
+    store.ensure().map_err(policy_error)?;
+    let out = params
+        .get("out")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RwError {
+            code: "RW-E1004".to_string(),
+            category: "usage".to_string(),
+            message: "missing required parameter `out`".to_string(),
+            hint: Some("pass --out <PATH>".to_string()),
+            details: None,
+        })?;
+    if store.audit_path().exists() {
+        std::fs::copy(store.audit_path(), out).map_err(policy_error)?;
+    } else {
+        std::fs::write(out, "").map_err(policy_error)?;
+    }
+    Ok(json!({ "out": out }))
 }
 
 fn json_to_toml_value(value: &Value) -> toml::Value {

@@ -139,6 +139,11 @@ enum AuditCommand {
     Verify,
     #[command(after_help = "Examples:\n  repowill audit log")]
     Log,
+    #[command(after_help = "Examples:\n  repowill audit export --out audit.jsonl")]
+    Export {
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 fn main() {
@@ -259,6 +264,9 @@ fn run(cli: Cli) -> i32 {
         let (op, params) = match command {
             AuditCommand::Verify => (repowill_core::Operation::AuditVerify, json!({})),
             AuditCommand::Log => (repowill_core::Operation::AuditLog, json!({})),
+            AuditCommand::Export { out } => {
+                (repowill_core::Operation::AuditExport, json!({ "out": out }))
+            }
         };
         let mut ctx = OpContext::new(repo_root.clone());
         if cli.json && cli.progress {
