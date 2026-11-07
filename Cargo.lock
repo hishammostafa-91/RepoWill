@@ -3327,6 +3327,7 @@ name = "repowill-testkit"
 version = "0.1.0"
 dependencies = [
  "tempfile",
+ "which",
 ]
 
 [[package]]

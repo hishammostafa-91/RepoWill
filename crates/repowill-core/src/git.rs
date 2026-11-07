@@ -29,12 +29,12 @@ impl Git {
         let version = git_version()?;
         if (version.major, version.minor) < (MIN_GIT_MAJOR, MIN_GIT_MINOR) {
             return Err(format!(
-                "git {} is too old; RepoWill requires git {}.{} or newer",
+                "RW-G0002: git {} is too old; RepoWill requires git {}.{} or newer",
                 version.raw, MIN_GIT_MAJOR, MIN_GIT_MINOR
             ));
         }
         let executable = crate::platform::resolve_bin("git")
-            .ok_or_else(|| "git executable not found on PATH".to_string())?;
+            .ok_or_else(|| "RW-G0001: git executable not found on PATH".to_string())?;
         Ok(Self {
             executable,
             env: isolated_env(),
@@ -62,7 +62,7 @@ pub fn git_version() -> Result<GitVersion, String> {
     let argv = vec!["git".to_string(), "--version".to_string()];
     let result = run(&argv, &options);
     if result.code != Some(0) {
-        return Err(format!("git --version failed: {}", result.stderr));
+        return Err(format!("RW-G0003: git --version failed: {}", result.stderr));
     }
     parse_git_version(&result.stdout)
 }
@@ -196,6 +196,14 @@ pub fn validate_ref_name(name: &str) -> bool {
         return false;
     }
     for part in name.split('/') {
+        if part.ends_with(".lock") {
+            return false;
+        }
+    }
+    if name == "HEAD" {
+        return false;
+    }
+    for part in name.split('/') {
         if part.is_empty() || part == "." || part == ".." {
             return false;
         }
@@ -235,7 +243,7 @@ pub fn is_ancestor(
     match result.code {
         Some(0) => Ok(true),
         Some(1) => Ok(false),
-        _ => Err(result.stderr.trim().to_string()),
+        _ => Err(format!("RW-G0003: {}", result.stderr.trim())),
     }
 }
 
@@ -260,7 +268,7 @@ pub fn config_get(git: &Git, repo: &Path, key: &str) -> Result<Option<String>, S
     match result.code {
         Some(0) => Ok(Some(result.stdout.trim().to_string())),
         Some(1) => Ok(None),
-        _ => Err(result.stderr.trim().to_string()),
+        _ => Err(format!("RW-G0003: {}", result.stderr.trim())),
     }
 }
 
@@ -291,8 +299,13 @@ pub fn commit_trailers(git: &Git, repo: &Path, rev: &str) -> Result<Vec<(String,
     if result.code != Some(0) {
         return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
+    let text = result.stdout.trim_end();
+    let block = text
+        .rsplit_once("\n\n")
+        .map(|(_, block)| block)
+        .unwrap_or(text);
     let mut trailers = Vec::new();
-    for line in result.stdout.lines() {
+    for line in block.lines() {
         if let Some((key, value)) = line.split_once(':') {
             let key = key.trim();
             let value = value.trim();

@@ -64,9 +64,41 @@ impl TempRepo {
             "#!/bin/sh\nexec \"{}\" hook dispatch \"$@\"\n",
             repowill_binary.display()
         );
-        for name in ["pre-commit", "commit-msg", "pre-push"] {
+        for name in [
+            "pre-commit",
+            "commit-msg",
+            "post-commit",
+            "pre-merge-commit",
+            "pre-push",
+            "pre-rebase",
+            "post-checkout",
+            "post-merge",
+            "reference-transaction",
+        ] {
             std::fs::write(hooks.join(name), &shim).expect("write hook");
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut permissions = std::fs::metadata(hooks.join(name)).unwrap().permissions();
+                permissions.set_mode(0o755);
+                std::fs::set_permissions(hooks.join(name), permissions).unwrap();
+            }
         }
+    }
+
+    pub fn install_hooks_auto(&self) {
+        if let Ok(binary) = which::which("repowill") {
+            self.install_hooks(&binary);
+        } else if let Ok(binary) = std::env::var("CARGO_BIN_EXE_repowill") {
+            self.install_hooks(Path::new(&binary));
+        }
+    }
+
+    pub fn fixture(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join(name)
     }
 
     pub fn commit(mut self, subject: &str, files: &[(&str, &str)]) -> Self {
