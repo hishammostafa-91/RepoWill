@@ -6,6 +6,7 @@ pub use repowill_model as model;
 pub use repowill_model::Operation;
 
 pub mod config;
+pub mod git;
 pub mod ops;
 pub mod platform;
 

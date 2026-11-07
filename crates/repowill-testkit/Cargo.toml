@@ -10,3 +10,4 @@ description = "RepoWill test helpers."
 
 [dependencies]
 tempfile = "=3.27.0"
+which = "=8.0.6"
