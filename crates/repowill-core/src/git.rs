@@ -26,6 +26,8 @@ pub struct Git {
 
 impl Git {
     pub fn new() -> Result<Self, String> {
+        let executable = crate::platform::resolve_bin("git")
+            .ok_or_else(|| "RW-G0001: git executable not found on PATH".to_string())?;
         let version = git_version()?;
         if (version.major, version.minor) < (MIN_GIT_MAJOR, MIN_GIT_MINOR) {
             return Err(format!(
@@ -33,8 +35,6 @@ impl Git {
                 version.raw, MIN_GIT_MAJOR, MIN_GIT_MINOR
             ));
         }
-        let executable = crate::platform::resolve_bin("git")
-            .ok_or_else(|| "RW-G0001: git executable not found on PATH".to_string())?;
         Ok(Self {
             executable,
             env: isolated_env(),
@@ -300,10 +300,9 @@ pub fn commit_trailers(git: &Git, repo: &Path, rev: &str) -> Result<Vec<(String,
         return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     let text = result.stdout.trim_end();
-    let block = text
-        .rsplit_once("\n\n")
-        .map(|(_, block)| block)
-        .unwrap_or(text);
+    let Some((_, block)) = text.rsplit_once("\n\n") else {
+        return Ok(Vec::new());
+    };
     let mut trailers = Vec::new();
     for line in block.lines() {
         if let Some((key, value)) = line.split_once(':') {
@@ -408,7 +407,11 @@ pub fn numstat(
         return Err(format!("RW-G0003: {}", result.stderr.trim()));
     }
     let mut out = Vec::new();
-    for record in result.stdout.split('\0') {
+    let tokens: Vec<&str> = result.stdout.split('\0').collect();
+    let mut index = 0;
+    while index < tokens.len() {
+        let record = tokens[index];
+        index += 1;
         if record.is_empty() {
             continue;
         }
@@ -416,7 +419,16 @@ pub fn numstat(
         let added = parts.next().unwrap_or("").to_string();
         let deleted = parts.next().unwrap_or("").to_string();
         let path = parts.next().unwrap_or("").to_string();
-        if !path.is_empty() {
+        if path.is_empty() {
+            if index + 1 >= tokens.len() {
+                break;
+            }
+            let _old = tokens[index];
+            index += 1;
+            let new = tokens[index].to_string();
+            index += 1;
+            out.push((added, deleted, new));
+        } else {
             out.push((added, deleted, path));
         }
     }
