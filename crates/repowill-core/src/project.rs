@@ -180,11 +180,36 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
             json!({ "root": root, "written": written, "skipped": skipped, "committed": false }),
         );
     }
-    let mut commit_args: Vec<&str> = vec!["commit", "-m", "chore: initial commit", "--"];
-    for rel in &written {
-        commit_args.push(rel.as_str());
+    // Create a one-time internal token for the guarded initial commit (FR-INIT-006).
+    let store = crate::state::StateStore::from_common_dir(
+        &crate::git::common_dir(root).unwrap_or_else(|_| root.join(".git")),
+    );
+    let _ = store.ensure();
+    let token_id = store
+        .create_token("init", root.to_string_lossy().as_ref(), None, None, 120)
+        .ok();
+
+    let git = crate::git::Git::new()?;
+    let mut env = git.env.clone();
+    if let Some(ref tid) = token_id {
+        env.push(("REPOWILL_INTERNAL_TOKEN".to_string(), tid.clone()));
     }
-    let result = git.run(&commit_args, Some(root))?;
+    let mut argv: Vec<String> = vec![git.executable.to_string_lossy().into_owned()];
+    argv.push("-C".to_string());
+    argv.push(root.to_string_lossy().into_owned());
+    argv.push("commit".to_string());
+    argv.push("-m".to_string());
+    argv.push("chore: initial commit".to_string());
+    argv.push("--".to_string());
+    for rel in &written {
+        argv.push(rel.clone());
+    }
+    let options = crate::platform::RunOptions {
+        env,
+        timeout: Some(std::time::Duration::from_secs(300)),
+        ..crate::platform::RunOptions::default()
+    };
+    let result = crate::platform::run(&argv, &options);
     if result.code != Some(0) {
         return Err(format!("git commit failed: {}", result.stderr));
     }
