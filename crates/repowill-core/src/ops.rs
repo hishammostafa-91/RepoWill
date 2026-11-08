@@ -164,14 +164,16 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
         gate: None,
     });
 
-    let result = if let Some(root) = &ctx.repo_root {
-        let dir = root.join(".repowill");
-        let _ = std::fs::create_dir_all(&dir);
+    let result = if ctx.repo_root.is_some() {
+        let lock_path = state_store(ctx).lock_path();
+        if let Some(parent) = lock_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
         if let Ok(file) = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(dir.join("ops.lock"))
+            .open(&lock_path)
         {
             let mut lock = fd_lock::RwLock::new(file);
             let _guard = lock.write().ok();

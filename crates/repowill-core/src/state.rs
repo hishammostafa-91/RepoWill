@@ -44,6 +44,10 @@ impl StateStore {
         &self.root
     }
 
+    pub fn lock_path(&self) -> PathBuf {
+        self.root.join("lock")
+    }
+
     pub fn version_path(&self) -> PathBuf {
         self.root.join("VERSION")
     }
@@ -207,6 +211,58 @@ impl StateStore {
 
     pub fn backups_dir(&self) -> PathBuf {
         self.root.join("backups")
+    }
+
+    pub fn ledger_path(&self, tree_oid: &str) -> PathBuf {
+        let prefix = tree_oid.get(..2).unwrap_or("00");
+        self.root
+            .join("ledger")
+            .join(prefix)
+            .join(format!("{tree_oid}.jsonl"))
+    }
+
+    pub fn append_ledger(&self, tree_oid: &str, entry: &Value) -> Result<(), String> {
+        let path = self.ledger_path(tree_oid);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        let line = serde_json::to_string(entry).map_err(|error| error.to_string())?;
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|error| error.to_string())?;
+        writeln!(file, "{line}").map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    pub fn append_metric(&self, entry: &Value) -> Result<(), String> {
+        self.ensure()?;
+        let line = serde_json::to_string(entry).map_err(|error| error.to_string())?;
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.metrics_path())
+            .map_err(|error| error.to_string())?;
+        writeln!(file, "{line}").map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    pub fn write_integrity(&self, value: &Value) -> Result<(), String> {
+        self.ensure()?;
+        atomic_write(
+            &self.integrity_path(),
+            serde_json::to_string_pretty(value).unwrap().as_bytes(),
+        )
+    }
+
+    pub fn create_run_dir(&self, run_id: &str) -> Result<PathBuf, String> {
+        self.ensure()?;
+        let dir = self.runs_dir().join(run_id);
+        std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+        Ok(dir)
     }
 
     pub fn append_audit(&self, key: &[u8], entry: &Value) -> Result<(), String> {

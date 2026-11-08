@@ -27,7 +27,7 @@ pub fn app_dirs() -> Result<AppDirs, String> {
             state: home.join("state"),
         });
     }
-    let pd = ProjectDirs::from("com", "AfterLeads", "RepoWill")
+    let pd = ProjectDirs::from("org", "AfterLeads", "RepoWill")
         .ok_or_else(|| "could not resolve project directories".to_string())?;
     Ok(AppDirs {
         config: pd.config_dir().to_path_buf(),
