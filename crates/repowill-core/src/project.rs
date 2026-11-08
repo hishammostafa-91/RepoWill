@@ -172,7 +172,11 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
             json!({ "root": root, "written": written, "skipped": skipped, "committed": false }),
         );
     }
-    let result = git.run(&["commit", "-m", "chore: initial commit"], Some(root))?;
+    let mut commit_args: Vec<&str> = vec!["commit", "-m", "chore: initial commit", "--"];
+    for rel in &written {
+        commit_args.push(rel.as_str());
+    }
+    let result = git.run(&commit_args, Some(root))?;
     if result.code != Some(0) {
         return Err(format!("git commit failed: {}", result.stderr));
     }
@@ -262,11 +266,7 @@ pub fn apply_update(
     let mut updated = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
-        let needs_write = if path.exists() {
-            std::fs::read_to_string(&path).ok().as_deref() != Some(content.as_str())
-        } else {
-            true
-        };
+        let needs_write = !path.exists();
         if needs_write {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -285,10 +285,11 @@ pub fn apply_update(
             return Err(format!("git add failed: {}", result.stderr));
         }
     }
-    let result = git.run(
-        &["commit", "-m", "chore: update project scaffold"],
-        Some(root),
-    )?;
+    let mut commit_args: Vec<&str> = vec!["commit", "-m", "chore: update project scaffold", "--"];
+    for rel in &updated {
+        commit_args.push(rel.as_str());
+    }
+    let result = git.run(&commit_args, Some(root))?;
     if result.code != Some(0) {
         return Err(format!("git commit failed: {}", result.stderr));
     }
