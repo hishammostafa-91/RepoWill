@@ -102,6 +102,16 @@ enum Commands {
         #[command(subcommand)]
         command: ProjectsCommand,
     },
+    /// Re-apply preset/templates to an initialised project.
+    #[command(after_help = "Examples:\n  repowill update\n  repowill update --path .")]
+    Update {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        email: Option<String>,
+    },
     /// Run a raw operation from JSON.
     #[command(after_help = "Examples:\n  repowill op '{\"op\":\"app.version\"}'")]
     Op {
@@ -541,6 +551,38 @@ fn run(cli: Cli) -> i32 {
         }
     }
 
+    if let Commands::Update { path, name, email } = command {
+        let params = json!({
+            "path": path,
+            "name": name.unwrap_or_default(),
+            "email": email.unwrap_or_default()
+        });
+        let ctx = OpContext::new(repo_root.clone());
+        match ops::execute(repowill_core::Operation::ProjectUpdate, params, &ctx) {
+            Ok(data) => {
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":"project.update","data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
+                return 0;
+            }
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                return error.exit_code();
+            }
+        }
+    }
+
     if let Commands::Projects { command } = command {
         let (op, params) = match command {
             ProjectsCommand::List => (repowill_core::Operation::ProjectList, json!({})),
@@ -639,6 +681,7 @@ fn run(cli: Cli) -> i32 {
         Commands::Init { .. } => unreachable!(),
         Commands::Adopt { .. } => unreachable!(),
         Commands::Projects { .. } => unreachable!(),
+        Commands::Update { .. } => unreachable!(),
         Commands::Config { command } => match command {
             ConfigCommand::Get { key } => {
                 (repowill_core::Operation::ConfigGet, json!({ "key": key }))
