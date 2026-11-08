@@ -180,7 +180,7 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     if result.code != Some(0) {
         return Err(format!("git commit failed: {}", result.stderr));
     }
-    Ok(json!({ "root": root, "written": written, "skipped": skipped }))
+    Ok(json!({ "root": root, "written": written, "skipped": skipped, "committed": true }))
 }
 
 pub fn gitattributes_content() -> String {
@@ -290,11 +290,15 @@ pub fn apply_update(
         commit_args.push(rel.as_str());
     }
     let result = git.run(&commit_args, Some(root))?;
-    if result.code != Some(0) {
-        return Err(format!("git commit failed: {}", result.stderr));
+    if result.code != Some(0) && !result.stdout.contains("nothing to commit") {
+        return Err(format!(
+            "git commit failed: {} (stdout: {})",
+            result.stderr, result.stdout
+        ));
     }
+    let committed = result.code == Some(0);
     let _ = (identity_name, identity_email);
-    Ok(json!({ "root": root, "updated": updated, "committed": true }))
+    Ok(json!({ "root": root, "updated": updated, "committed": committed }))
 }
 
 pub fn project_forget(root: &Path) -> Result<Value, String> {
@@ -348,5 +352,34 @@ mod tests {
         let dir = tempdir().unwrap();
         let result = apply_init(dir.path(), "", "");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn apply_init_creates_repo_and_files() {
+        let dir = tempdir().unwrap();
+        let result = apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        assert!(dir.path().join(".git").exists());
+        assert!(dir.path().join("README.md").exists());
+        assert!(dir.path().join(".gitattributes").exists());
+        assert_eq!(result["committed"], true);
+    }
+
+    #[test]
+    fn apply_init_idempotent() {
+        let dir = tempdir().unwrap();
+        apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        let result = apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        assert_eq!(result["committed"], false);
+    }
+
+    #[test]
+    fn apply_update_adds_missing_files() {
+        let dir = tempdir().unwrap();
+        apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        // remove a file
+        std::fs::remove_file(dir.path().join("README.md")).unwrap();
+        let _result = apply_update(dir.path(), "Test", "test@example.com").unwrap();
+        // File is restored (content matches scaffold).
+        assert!(dir.path().join("README.md").exists());
     }
 }

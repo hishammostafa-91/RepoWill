@@ -371,6 +371,12 @@ fn run(cli: Cli) -> i32 {
                         .get("identity_name")
                         .and_then(|v| v.as_str())
                         .map(str::to_string)
+                })
+                .or_else(|| {
+                    parsed
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
                 });
             let n = identity_name.or(name);
             let e = parsed
