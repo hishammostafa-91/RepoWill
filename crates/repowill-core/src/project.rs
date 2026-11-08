@@ -37,6 +37,13 @@ pub fn detect(root: &Path) -> Value {
         stacks.push("generic");
     }
 
+    // Proposed preset based on stacks.
+    let proposed_preset = if stacks.iter().any(|s| *s == "rust" || *s == "go") {
+        "strict"
+    } else {
+        "recommended"
+    };
+
     let mut hook_managers = Vec::new();
     if root.join(".husky").exists() {
         hook_managers.push("husky");
@@ -89,7 +96,8 @@ pub fn detect(root: &Path) -> Value {
         "stacks": stacks,
         "hook_managers": hook_managers,
         "agent_configs": agent_configs,
-        "existing_files": existing_files
+        "existing_files": existing_files,
+        "proposed_preset": proposed_preset
     })
 }
 

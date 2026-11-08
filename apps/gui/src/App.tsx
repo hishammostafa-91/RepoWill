@@ -30,6 +30,7 @@ function App() {
   const [initName, setInitName] = useState<string>("");
   const [initEmail, setInitEmail] = useState<string>("");
   const [initPath, setInitPath] = useState<string>(".");
+  const [wizardStep, setWizardStep] = useState<number>(0);
 
   useEffect(() => {
     invoke<OpResult>("rw_op", { op: "app.version", params: null })
