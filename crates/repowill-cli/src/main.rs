@@ -350,6 +350,7 @@ fn run(cli: Cli) -> i32 {
         answers,
     } = command
     {
+        let has_answers = answers.is_some();
         let (path, name, email) = if let Some(answers_path) = answers {
             let text = std::fs::read_to_string(&answers_path).unwrap_or_default();
             let text = text.trim_start_matches('\u{feff}');
@@ -392,7 +393,56 @@ fn run(cli: Cli) -> i32 {
                 }
             }
         }
-        let params = json!({ "path": path, "name": name.unwrap_or_default(), "email": email.unwrap_or_default() });
+        let (path, name, email) = if name.is_none() && !has_answers && !cli.non_interactive {
+            use dialoguer::{Confirm, Input, Select};
+            let path_str: String = Input::new()
+                .with_prompt("Project path")
+                .default(path.to_string_lossy().to_string())
+                .interact_text()
+                .unwrap_or_default();
+            let name: String = Input::new()
+                .with_prompt("Project name")
+                .default("my-project".to_string())
+                .interact_text()
+                .unwrap_or_default();
+            let email: String = Input::new()
+                .with_prompt("Owner email")
+                .default("user@example.com".to_string())
+                .interact_text()
+                .unwrap_or_default();
+            let detect_params = json!({ "path": path_str.clone() });
+            let ctx = OpContext::new(repo_root.clone());
+            if let Ok(d) =
+                ops::execute(repowill_core::Operation::ProjectDetect, detect_params, &ctx)
+            {
+                println!("Detected stacks: {:?}", d.get("stacks"));
+            }
+            let presets = ["starter", "recommended", "strict", "maximum"];
+            let preset_idx = Select::new()
+                .with_prompt("Preset")
+                .items(presets)
+                .default(1)
+                .interact()
+                .unwrap_or(1);
+            let _preset = presets[preset_idx];
+            let apply = Confirm::new()
+                .with_prompt("Apply now?")
+                .default(true)
+                .interact()
+                .unwrap_or(false);
+            if !apply {
+                return 0;
+            }
+            (PathBuf::from(path_str), Some(name), Some(email))
+        } else {
+            (path, name, email)
+        };
+
+        let params = json!({
+            "path": path,
+            "name": name.unwrap_or_default(),
+            "email": email.unwrap_or_default()
+        });
         let ctx = OpContext::new(repo_root.clone());
         match ops::execute(repowill_core::Operation::ProjectInit, params, &ctx) {
             Ok(data) => {
