@@ -110,8 +110,10 @@ pub fn plan_files(root: &Path, _stacks: &[String]) -> Vec<(String, String)> {
     let _ = root;
     vec![
         (".gitattributes".to_string(), gitattributes_content()),
+        (".gitignore".to_string(), gitignore_content()),
         (".editorconfig".to_string(), editorconfig_content()),
         ("README.md".to_string(), readme_content()),
+        ("LICENSE".to_string(), license_content()),
         ("CHANGELOG.md".to_string(), changelog_content()),
         (".repowill/policy.toml".to_string(), policy_content()),
     ]
@@ -158,9 +160,17 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     {
         let _ = git.run(&["config", "core.longpaths", "true"], Some(root));
     }
-    let result = git.run(&["add", "-A"], Some(root))?;
-    if result.code != Some(0) {
-        return Err(format!("git add failed: {}", result.stderr));
+    // Stage only the scaffold files we wrote, never pre-existing content.
+    for rel in &written {
+        let result = git.run(&["add", "--", rel], Some(root))?;
+        if result.code != Some(0) {
+            return Err(format!("git add failed: {}", result.stderr));
+        }
+    }
+    if written.is_empty() {
+        return Ok(
+            json!({ "root": root, "written": written, "skipped": skipped, "committed": false }),
+        );
     }
     let result = git.run(&["commit", "-m", "chore: initial commit"], Some(root))?;
     if result.code != Some(0) {
@@ -184,6 +194,15 @@ pub fn readme_content() -> String {
 
 pub fn changelog_content() -> String {
     "# Changelog\n\nAll notable changes to this project will be documented in this file.\n"
+        .to_string()
+}
+
+pub fn gitignore_content() -> String {
+    "# RepoWill\n.repowill/local.toml\n.repowill/ops.lock\n".to_string()
+}
+
+pub fn license_content() -> String {
+    "MIT License\n\nCopyright (c) \n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
         .to_string()
 }
 
@@ -229,6 +248,52 @@ pub fn project_add(root: &Path) -> Result<Value, String> {
     std::fs::write(&path, serde_json::to_string_pretty(&list).unwrap())
         .map_err(|e| e.to_string())?;
     Ok(list)
+}
+
+pub fn apply_update(
+    root: &Path,
+    identity_name: &str,
+    identity_email: &str,
+) -> Result<Value, String> {
+    if !root.join(".git").exists() {
+        return Err("not a git repository".to_string());
+    }
+    let files = plan_files(root, &[]);
+    let mut updated = Vec::new();
+    for (rel, content) in &files {
+        let path = root.join(rel);
+        let needs_write = if path.exists() {
+            std::fs::read_to_string(&path).ok().as_deref() != Some(content.as_str())
+        } else {
+            true
+        };
+        if needs_write {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            std::fs::write(&path, content).map_err(|e| e.to_string())?;
+            updated.push(rel.clone());
+        }
+    }
+    if updated.is_empty() {
+        return Ok(json!({ "root": root, "updated": updated, "committed": false }));
+    }
+    let git = crate::git::Git::new()?;
+    for rel in &updated {
+        let result = git.run(&["add", "--", rel], Some(root))?;
+        if result.code != Some(0) {
+            return Err(format!("git add failed: {}", result.stderr));
+        }
+    }
+    let result = git.run(
+        &["commit", "-m", "chore: update project scaffold"],
+        Some(root),
+    )?;
+    if result.code != Some(0) {
+        return Err(format!("git commit failed: {}", result.stderr));
+    }
+    let _ = (identity_name, identity_email);
+    Ok(json!({ "root": root, "updated": updated, "committed": true }))
 }
 
 pub fn project_forget(root: &Path) -> Result<Value, String> {

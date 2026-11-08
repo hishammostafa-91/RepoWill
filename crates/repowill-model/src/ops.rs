@@ -791,6 +791,7 @@ fn operation_meta(op: Operation) -> OperationMeta {
         | Operation::ProjectPlan
         | Operation::ProjectInit
         | Operation::ProjectAdopt
+        | Operation::ProjectUpdate
         | Operation::ProjectList
         | Operation::ProjectAdd
         | Operation::ProjectForget => "implemented",

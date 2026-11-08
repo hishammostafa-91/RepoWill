@@ -122,6 +122,7 @@ pub fn implemented_ops() -> &'static [Operation] {
         Operation::ProjectPlan,
         Operation::ProjectInit,
         Operation::ProjectAdopt,
+        Operation::ProjectUpdate,
         Operation::ProjectList,
         Operation::ProjectAdd,
         Operation::ProjectForget,
@@ -163,6 +164,7 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
             Operation::ProjectPlan => project_plan(ctx, params),
             Operation::ProjectInit => project_init(ctx, params),
             Operation::ProjectAdopt => project_adopt(ctx, params),
+            Operation::ProjectUpdate => project_update(ctx, params),
             Operation::ProjectList => project_list(ctx),
             Operation::ProjectAdd => project_add(ctx, params),
             Operation::ProjectForget => project_forget(ctx, params),
@@ -590,7 +592,16 @@ fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     let files = project::plan_files(&root, &stacks);
     let file_list: Vec<Value> = files
         .iter()
-        .map(|(rel, content)| json!({ "path": rel, "bytes": content.len(), "exists": root.join(rel).exists() }))
+        .map(|(rel, content)| {
+            let existing = std::fs::read_to_string(root.join(rel)).ok();
+            json!({
+                "path": rel,
+                "bytes": content.len(),
+                "exists": root.join(rel).exists(),
+                "content": content,
+                "current": existing
+            })
+        })
         .collect();
     Ok(json!({ "root": root, "detection": detection, "files": file_list }))
 }
@@ -682,6 +693,18 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     Ok(json!({ "root": root, "detection": detection, "written": written }))
 }
 
+fn project_update(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let email = params.get("email").and_then(Value::as_str).unwrap_or("");
+    project::apply_update(&root, name, email).map_err(policy_error)
+}
+
 fn project_list(ctx: &OpContext) -> Result<Value, RwError> {
     let _ = ctx;
     project::project_list().map_err(policy_error)
@@ -746,7 +769,7 @@ mod tests {
     #[test]
     fn planned_operation_returns_usage_error() {
         let ctx = OpContext::new(None);
-        let error = execute(Operation::ProjectUpdate, json!({}), &ctx).unwrap_err();
+        let error = execute(Operation::ProjectStatus, json!({}), &ctx).unwrap_err();
         assert_eq!(error.exit_code(), 2);
         assert_eq!(error.code, "RW-E1000");
     }

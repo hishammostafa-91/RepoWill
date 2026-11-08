@@ -171,7 +171,7 @@ fn run_parity() -> Result<()> {
             "repowill-cli",
             "--",
             "op",
-            "{\"op\":\"project.update\"}",
+            "{\"op\":\"project.status\"}",
         ])
         .status()
         .context("cargo run repowill op project.detect")?;
