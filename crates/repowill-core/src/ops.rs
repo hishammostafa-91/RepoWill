@@ -634,6 +634,15 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .map(PathBuf::from)
         .or_else(|| ctx.repo_root.clone())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    if !root.join(".git").exists() {
+        return Err(RwError {
+            code: "RW-E1004".to_string(),
+            category: "usage".to_string(),
+            message: "target is not a git repository; use `init` first".to_string(),
+            hint: Some("run `repowill init` to create a new repository".to_string()),
+            details: None,
+        });
+    }
     // adopt = detect + plan + apply (same as init but for existing repo)
     let detection = project::detect(&root);
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
