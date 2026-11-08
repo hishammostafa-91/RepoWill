@@ -10,6 +10,8 @@ use crate::config::strictness::semantic_diff;
 use crate::config::{
     ENGINE_VERSION, builtin_policy, load_policy_file, policy_to_toml, validate, validate_source,
 };
+use crate::git;
+use crate::state::{KeyStore, StateStore};
 use repowill_model::Operation;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -112,6 +114,9 @@ pub fn implemented_ops() -> &'static [Operation] {
         Operation::PolicyExplain,
         Operation::PolicySet,
         Operation::PolicyDiff,
+        Operation::AuditLog,
+        Operation::AuditVerify,
+        Operation::AuditExport,
     ]
 }
 
@@ -143,6 +148,9 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
             Operation::PolicyExplain => policy_explain(ctx, params),
             Operation::PolicySet => policy_set(ctx, params),
             Operation::PolicyDiff => policy_diff(ctx, params),
+            Operation::AuditLog => audit_log(ctx, params),
+            Operation::AuditVerify => audit_verify(ctx),
+            Operation::AuditExport => audit_export(ctx, params),
             _ => Err(RwError::planned(op)),
         }
     };
@@ -156,14 +164,16 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
         gate: None,
     });
 
-    let result = if let Some(root) = &ctx.repo_root {
-        let dir = root.join(".repowill");
-        let _ = std::fs::create_dir_all(&dir);
+    let result = if ctx.repo_root.is_some() {
+        let lock_path = state_store(ctx).lock_path();
+        if let Some(parent) = lock_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
         if let Ok(file) = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(dir.join("ops.lock"))
+            .open(&lock_path)
         {
             let mut lock = fd_lock::RwLock::new(file);
             let _guard = lock.write().ok();
@@ -473,6 +483,65 @@ fn policy_error(error: impl std::fmt::Display) -> RwError {
         hint: None,
         details: None,
     }
+}
+
+fn state_store(ctx: &OpContext) -> StateStore {
+    if let Some(root) = &ctx.repo_root
+        && let Ok(common) = git::common_dir(root)
+    {
+        return StateStore::from_common_dir(&common);
+    }
+    if let Some(root) = &ctx.repo_root {
+        return StateStore::from_common_dir(&root.join(".git"));
+    }
+    StateStore::from_common_dir(&std::env::current_dir().unwrap_or_default())
+}
+
+fn audit_log(ctx: &OpContext, _params: &Value) -> Result<Value, RwError> {
+    let store = state_store(ctx);
+    store.ensure().map_err(policy_error)?;
+    let entries = if store.audit_path().exists() {
+        std::fs::read_to_string(store.audit_path())
+            .map_err(policy_error)?
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str::<Value>(line).unwrap_or(Value::Null))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    Ok(json!({ "entries": entries }))
+}
+
+fn audit_verify(ctx: &OpContext) -> Result<Value, RwError> {
+    let store = state_store(ctx);
+    store.ensure().map_err(policy_error)?;
+    let key = KeyStore::new(KeyStore::default_path())
+        .load_or_create()
+        .map_err(policy_error)?;
+    let tampered = store.verify_audit_index(&key).map_err(policy_error)?;
+    Ok(json!({ "valid": tampered.is_none(), "tampered_entry": tampered }))
+}
+
+fn audit_export(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let store = state_store(ctx);
+    store.ensure().map_err(policy_error)?;
+    let out = params
+        .get("out")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RwError {
+            code: "RW-E1004".to_string(),
+            category: "usage".to_string(),
+            message: "missing required parameter `out`".to_string(),
+            hint: Some("pass --out <PATH>".to_string()),
+            details: None,
+        })?;
+    if store.audit_path().exists() {
+        std::fs::copy(store.audit_path(), out).map_err(policy_error)?;
+    } else {
+        std::fs::write(out, "").map_err(policy_error)?;
+    }
+    Ok(json!({ "out": out }))
 }
 
 fn json_to_toml_value(value: &Value) -> toml::Value {
