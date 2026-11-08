@@ -145,6 +145,46 @@ function App() {
             >
               Detect
             </button>
+            <button
+              type="button"
+              style={{ marginLeft: 8 }}
+              onClick={async () => {
+                try {
+                  const r = await invoke<OpResult>("rw_op", {
+                    op: "project.plan",
+                    params: { path: "." },
+                  });
+                  setDetectResult(JSON.stringify(r.result));
+                  setError("");
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+            >
+              Preview
+            </button>
+            <button
+              type="button"
+              style={{ marginLeft: 8 }}
+              onClick={async () => {
+                try {
+                  const r = await invoke<OpResult>("rw_op", {
+                    op: "project.init",
+                    params: {
+                      path: ".",
+                      name: "demo",
+                      email: "demo@example.com",
+                    },
+                  });
+                  setDetectResult(JSON.stringify(r.result));
+                  setError("");
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+            >
+              Apply
+            </button>
             {detectResult && <pre>{detectResult}</pre>}
             {error && <p style={{ color: "red" }}>{error}</p>}
           </>
