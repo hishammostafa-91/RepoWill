@@ -391,6 +391,10 @@ fn run(cli: Cli) -> i32 {
                         .map(str::to_string)
                 });
             let n = identity_name.or(name);
+            // Store extra answers fields for future use (description, preset, license, etc.)
+            let _description = parsed.get("description").and_then(|v| v.as_str()).map(str::to_string);
+            let _preset = parsed.get("preset").and_then(|v| v.as_str()).map(str::to_string);
+            let _project_license = parsed.get("project_license").and_then(|v| v.as_str()).map(str::to_string);
             let e = parsed
                 .get("identity")
                 .and_then(|v| v.get("email"))
