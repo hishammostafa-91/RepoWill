@@ -30,6 +30,7 @@ function App() {
   const [initName, setInitName] = useState<string>("");
   const [initEmail, setInitEmail] = useState<string>("");
   const [initPath, setInitPath] = useState<string>(".");
+  const [wizardStep, setWizardStep] = useState<number>(0);
 
   useEffect(() => {
     invoke<OpResult>("rw_op", { op: "app.version", params: null })
@@ -130,85 +131,137 @@ function App() {
         )}
         {page === "setup" && (
           <>
-            <h1>Setup</h1>
+            <h1>Setup wizard</h1>
             <div style={{ marginBottom: 8 }}>
-              <input
-                placeholder="path"
-                value={initPath}
-                onChange={(e) => setInitPath(e.target.value)}
-              />
+              <span>Step {wizardStep + 1} of 4</span>
             </div>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const r = await invoke<OpResult>("rw_op", {
-                    op: "project.detect",
-                    params: { path: initPath },
-                  });
-                  setDetectResult(JSON.stringify(r.result));
-                  setError("");
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-            >
-              Detect
-            </button>
-            <button
-              type="button"
-              style={{ marginLeft: 8 }}
-              onClick={async () => {
-                try {
-                  const r = await invoke<OpResult>("rw_op", {
-                    op: "project.plan",
-                    params: { path: initPath },
-                  });
-                  setDetectResult(JSON.stringify(r.result));
-                  setError("");
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-            >
-              Preview
-            </button>
-            <div style={{ marginTop: 8 }}>
-              <input
-                placeholder="name"
-                value={initName}
-                onChange={(e) => setInitName(e.target.value)}
-              />
-              <input
-                placeholder="email"
-                value={initEmail}
-                onChange={(e) => setInitEmail(e.target.value)}
-                style={{ marginLeft: 8 }}
-              />
-            </div>
-            <button
-              type="button"
-              style={{ marginTop: 8 }}
-              onClick={async () => {
-                try {
-                  const r = await invoke<OpResult>("rw_op", {
-                    op: "project.init",
-                    params: {
-                      path: initPath,
-                      name: initName,
-                      email: initEmail,
-                    },
-                  });
-                  setDetectResult(JSON.stringify(r.result));
-                  setError("");
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-            >
-              Apply
-            </button>
-            {detectResult && <pre>{detectResult}</pre>}
+            {wizardStep === 0 && (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  <input
+                    placeholder="path"
+                    value={initPath}
+                    onChange={(e) => setInitPath(e.target.value)}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <input
+                    placeholder="name"
+                    value={initName}
+                    onChange={(e) => setInitName(e.target.value)}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <input
+                    placeholder="email"
+                    value={initEmail}
+                    onChange={(e) => setInitEmail(e.target.value)}
+                  />
+                </div>
+                <button type="button" onClick={() => setWizardStep(1)}>
+                  Next
+                </button>
+              </>
+            )}
+            {wizardStep === 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const r = await invoke<OpResult>("rw_op", {
+                        op: "project.detect",
+                        params: { path: initPath },
+                      });
+                      setDetectResult(JSON.stringify(r.result));
+                      setError("");
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
+                >
+                  Detect
+                </button>
+                {detectResult && <pre>{detectResult}</pre>}
+                <div style={{ marginTop: 8 }}>
+                  <button type="button" onClick={() => setWizardStep(0)}>
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    style={{ marginLeft: 8 }}
+                    onClick={() => setWizardStep(2)}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            )}
+            {wizardStep === 2 && (
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const r = await invoke<OpResult>("rw_op", {
+                        op: "project.plan",
+                        params: { path: initPath },
+                      });
+                      setDetectResult(JSON.stringify(r.result));
+                      setError("");
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
+                >
+                  Preview
+                </button>
+                {detectResult && <pre>{detectResult}</pre>}
+                <div style={{ marginTop: 8 }}>
+                  <button type="button" onClick={() => setWizardStep(1)}>
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    style={{ marginLeft: 8 }}
+                    onClick={() => setWizardStep(3)}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            )}
+            {wizardStep === 3 && (
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const r = await invoke<OpResult>("rw_op", {
+                        op: "project.init",
+                        params: {
+                          path: initPath,
+                          name: initName,
+                          email: initEmail,
+                        },
+                      });
+                      setDetectResult(JSON.stringify(r.result));
+                      setError("");
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
+                >
+                  Apply
+                </button>
+                {detectResult && <pre>{detectResult}</pre>}
+                <div style={{ marginTop: 8 }}>
+                  <button type="button" onClick={() => setWizardStep(2)}>
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
             {error && <p style={{ color: "red" }}>{error}</p>}
           </>
         )}
