@@ -93,6 +93,8 @@ enum Commands {
         name: Option<String>,
         #[arg(long)]
         email: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Manage the projects registry.
     #[command(after_help = "Examples:\n  repowill projects list")]
@@ -488,7 +490,30 @@ fn run(cli: Cli) -> i32 {
         }
     }
 
-    if let Commands::Adopt { path, name, email } = command {
+    if let Commands::Adopt {
+        path,
+        name,
+        email,
+        dry_run,
+    } = command
+    {
+        if dry_run {
+            let params = json!({ "path": path });
+            let ctx = OpContext::new(repo_root.clone());
+            match ops::execute(repowill_core::Operation::ProjectPlan, params, &ctx) {
+                Ok(data) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                    return 0;
+                }
+                Err(error) => {
+                    eprintln!("{}: {}", error.code, error.message);
+                    return error.exit_code();
+                }
+            }
+        }
         let params = json!({ "path": path, "name": name.unwrap_or_default(), "email": email.unwrap_or_default() });
         let ctx = OpContext::new(repo_root.clone());
         match ops::execute(repowill_core::Operation::ProjectAdopt, params, &ctx) {
