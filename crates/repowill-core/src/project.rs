@@ -24,10 +24,6 @@ pub fn detect(root: &Path) -> Value {
     if exists("pom.xml") || exists("build.gradle") || exists("build.gradle.kts") {
         stacks.push("java");
     }
-    if exists("*.csproj") || exists("*.sln") {
-        // glob not checked here; placeholder
-    }
-    // .NET detection
     if let Ok(entries) = std::fs::read_dir(root) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -37,12 +33,10 @@ pub fn detect(root: &Path) -> Value {
             }
         }
     }
-    // docs-only: no code markers
     if stacks.is_empty() {
         stacks.push("generic");
     }
 
-    // hook managers
     let mut hook_managers = Vec::new();
     if root.join(".husky").exists() {
         hook_managers.push("husky");
@@ -58,7 +52,6 @@ pub fn detect(root: &Path) -> Value {
         hook_managers.push("core.hooksPath");
     }
 
-    // agent configs
     let mut agent_configs = Vec::new();
     if root.join("AGENTS.md").exists() {
         agent_configs.push("AGENTS.md");
@@ -73,7 +66,6 @@ pub fn detect(root: &Path) -> Value {
         agent_configs.push(".claude");
     }
 
-    // existing files of interest
     let mut existing_files = Vec::new();
     for name in [
         ".gitattributes",
@@ -89,7 +81,6 @@ pub fn detect(root: &Path) -> Value {
         }
     }
 
-    // is git repo?
     let is_git = root.join(".git").exists();
 
     json!({
@@ -116,24 +107,21 @@ fn git_config_hooks_path(root: &Path) -> Option<String> {
 }
 
 pub fn plan_files(root: &Path, _stacks: &[String]) -> Vec<(String, String)> {
-    // Returns list of (relative_path, content) that would be created.
     let _ = root;
     vec![
         (".gitattributes".to_string(), gitattributes_content()),
         (".editorconfig".to_string(), editorconfig_content()),
         ("README.md".to_string(), readme_content()),
         ("CHANGELOG.md".to_string(), changelog_content()),
-        (
-            ".repowill/policy.toml".to_string(),
-            String::from("# placeholder policy\nschema_version = 1\n"),
-        ),
+        (".repowill/policy.toml".to_string(), policy_content()),
     ]
 }
 
 pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Result<Value, String> {
-    // Create dir if needed
+    if identity_name.is_empty() || identity_email.is_empty() {
+        return Err("identity name and email are required".to_string());
+    }
     std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
-    // git init if not a repo
     let git_dir = root.join(".git");
     if !git_dir.exists() {
         let git = crate::git::Git::new()?;
@@ -142,28 +130,43 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
             return Err(format!("git init failed: {}", result.stderr));
         }
     }
-    // Write files
     let files = plan_files(root, &[]);
+    let mut written = Vec::new();
+    let mut skipped = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
+        if path.exists() {
+            skipped.push(rel.clone());
+            continue;
+        }
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        written.push(rel.clone());
     }
-    // git config identity
     let git = crate::git::Git::new()?;
-    let _ = git.run(&["config", "user.name", identity_name], Some(root));
-    let _ = git.run(&["config", "user.email", identity_email], Some(root));
-    // core.longpaths on Windows
+    let result = git.run(&["config", "user.name", identity_name], Some(root))?;
+    if result.code != Some(0) {
+        return Err(format!("git config user.name failed: {}", result.stderr));
+    }
+    let result = git.run(&["config", "user.email", identity_email], Some(root))?;
+    if result.code != Some(0) {
+        return Err(format!("git config user.email failed: {}", result.stderr));
+    }
     #[cfg(windows)]
     {
         let _ = git.run(&["config", "core.longpaths", "true"], Some(root));
     }
-    // initial commit with token
-    let _ = git.run(&["add", "-A"], Some(root));
-    let _ = git.run(&["commit", "-m", "chore: initial commit"], Some(root));
-    Ok(json!({ "root": root, "files": files.len() }))
+    let result = git.run(&["add", "-A"], Some(root))?;
+    if result.code != Some(0) {
+        return Err(format!("git add failed: {}", result.stderr));
+    }
+    let result = git.run(&["commit", "-m", "chore: initial commit"], Some(root))?;
+    if result.code != Some(0) {
+        return Err(format!("git commit failed: {}", result.stderr));
+    }
+    Ok(json!({ "root": root, "written": written, "skipped": skipped }))
 }
 
 pub fn gitattributes_content() -> String {
@@ -182,6 +185,10 @@ pub fn readme_content() -> String {
 pub fn changelog_content() -> String {
     "# Changelog\n\nAll notable changes to this project will be documented in this file.\n"
         .to_string()
+}
+
+pub fn policy_content() -> String {
+    "schema_version = 1\nmin_repowill_version = \"1.0.0\"\n".to_string()
 }
 
 pub fn project_list_path() -> PathBuf {
@@ -210,8 +217,8 @@ pub fn project_add(root: &Path) -> Result<Value, String> {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let mut list = project_list().unwrap_or(json!({ "projects": [] }));
-    let projects = list.get_mut("projects").and_then(|v| v.as_array_mut());
     let entry = json!({ "path": root.display().to_string() });
+    let projects = list.get_mut("projects").and_then(|v| v.as_array_mut());
     if let Some(arr) = projects {
         if !arr.iter().any(|p| p.get("path") == Some(&entry["path"])) {
             arr.push(entry);
@@ -238,4 +245,42 @@ pub fn project_forget(root: &Path) -> Result<Value, String> {
     std::fs::write(&path, serde_json::to_string_pretty(&list).unwrap())
         .map_err(|e| e.to_string())?;
     Ok(list)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn detect_finds_rust_stack() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname=\"x\"\n").unwrap();
+        let result = detect(dir.path());
+        let stacks = result["stacks"].as_array().unwrap();
+        assert!(stacks.iter().any(|s| s == "rust"));
+    }
+
+    #[test]
+    fn detect_generic_when_empty() {
+        let dir = tempdir().unwrap();
+        let result = detect(dir.path());
+        let stacks = result["stacks"].as_array().unwrap();
+        assert!(stacks.iter().any(|s| s == "generic"));
+    }
+
+    #[test]
+    fn plan_files_not_empty() {
+        let dir = tempdir().unwrap();
+        let files = plan_files(dir.path(), &[]);
+        assert!(!files.is_empty());
+        assert!(files.iter().any(|(p, _)| p == ".gitattributes"));
+    }
+
+    #[test]
+    fn apply_init_requires_identity() {
+        let dir = tempdir().unwrap();
+        let result = apply_init(dir.path(), "", "");
+        assert!(result.is_err());
+    }
 }

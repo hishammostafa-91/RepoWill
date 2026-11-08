@@ -27,6 +27,8 @@ function App() {
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [detectResult, setDetectResult] = useState<string>("");
   const [projects, setProjects] = useState<string>("");
+  const [initName, setInitName] = useState<string>("");
+  const [initEmail, setInitEmail] = useState<string>("");
 
   useEffect(() => {
     invoke<OpResult>("rw_op", { op: "app.version", params: null })
@@ -163,18 +165,27 @@ function App() {
             >
               Preview
             </button>
+            <div style={{ marginTop: 8 }}>
+              <input
+                placeholder="name"
+                value={initName}
+                onChange={(e) => setInitName(e.target.value)}
+              />
+              <input
+                placeholder="email"
+                value={initEmail}
+                onChange={(e) => setInitEmail(e.target.value)}
+                style={{ marginLeft: 8 }}
+              />
+            </div>
             <button
               type="button"
-              style={{ marginLeft: 8 }}
+              style={{ marginTop: 8 }}
               onClick={async () => {
                 try {
                   const r = await invoke<OpResult>("rw_op", {
                     op: "project.init",
-                    params: {
-                      path: ".",
-                      name: "demo",
-                      email: "demo@example.com",
-                    },
+                    params: { path: ".", name: initName, email: initEmail },
                   });
                   setDetectResult(JSON.stringify(r.result));
                   setError("");

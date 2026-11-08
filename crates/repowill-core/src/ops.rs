@@ -602,14 +602,17 @@ fn project_init(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .map(PathBuf::from)
         .or_else(|| ctx.repo_root.clone())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-    let name = params
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("Project");
-    let email = params
-        .get("email")
-        .and_then(Value::as_str)
-        .unwrap_or("user@example.com");
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let email = params.get("email").and_then(Value::as_str).unwrap_or("");
+    if name.is_empty() || email.is_empty() {
+        return Err(RwError {
+            code: "RW-E1004".to_string(),
+            category: "usage".to_string(),
+            message: "missing required parameters `name` and `email`".to_string(),
+            hint: Some("pass --name and --email, or use --answers".to_string()),
+            details: None,
+        });
+    }
     project::apply_init(&root, name, email).map_err(policy_error)
 }
 
@@ -622,14 +625,17 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     // adopt = detect + plan + apply (same as init but for existing repo)
     let detection = project::detect(&root);
-    let name = params
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("Project");
-    let email = params
-        .get("email")
-        .and_then(Value::as_str)
-        .unwrap_or("user@example.com");
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let email = params.get("email").and_then(Value::as_str).unwrap_or("");
+    if name.is_empty() || email.is_empty() {
+        return Err(RwError {
+            code: "RW-E1004".to_string(),
+            category: "usage".to_string(),
+            message: "missing required parameters `name` and `email`".to_string(),
+            hint: Some("pass --name and --email, or use --answers".to_string()),
+            details: None,
+        });
+    }
     // Only write files that don't exist yet
     let stacks: Vec<String> = detection
         .get("stacks")
@@ -655,8 +661,24 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     }
     // git config identity
     let git = crate::git::Git::new().map_err(policy_error)?;
-    let _ = git.run(&["config", "user.name", name], Some(&root));
-    let _ = git.run(&["config", "user.email", email], Some(&root));
+    let result = git
+        .run(&["config", "user.name", name], Some(&root))
+        .map_err(policy_error)?;
+    if result.code != Some(0) {
+        return Err(policy_error(format!(
+            "git config user.name failed: {}",
+            result.stderr
+        )));
+    }
+    let result = git
+        .run(&["config", "user.email", email], Some(&root))
+        .map_err(policy_error)?;
+    if result.code != Some(0) {
+        return Err(policy_error(format!(
+            "git config user.email failed: {}",
+            result.stderr
+        )));
+    }
     Ok(json!({ "root": root, "detection": detection, "written": written }))
 }
 

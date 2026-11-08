@@ -351,7 +351,7 @@ fn run(cli: Cli) -> i32 {
     } = command
     {
         let has_answers = answers.is_some();
-        let (path, name, email) = if let Some(answers_path) = answers {
+        let mode_from_answers = if let Some(answers_path) = answers {
             let text = std::fs::read_to_string(&answers_path).unwrap_or_default();
             let text = text.trim_start_matches('\u{feff}');
             let parsed: toml::Value =
@@ -361,21 +361,39 @@ fn run(cli: Cli) -> i32 {
                 .and_then(|v| v.as_str())
                 .map(PathBuf::from)
                 .unwrap_or(path);
-            let n = parsed
-                .get("name")
+            let identity_name = parsed
+                .get("identity")
+                .and_then(|v| v.get("name"))
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
-                .or(name);
+                .or_else(|| {
+                    parsed
+                        .get("identity_name")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                });
+            let n = identity_name.or(name);
             let e = parsed
                 .get("identity")
                 .and_then(|v| v.get("email"))
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
                 .or(email);
-            (p, n, e)
+            let m = parsed
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| "new".to_string());
+            (p, n, e, m)
         } else {
-            (path, name, email)
+            (path, name, email, "new".to_string())
         };
+        let (path, name, email) = (
+            mode_from_answers.0,
+            mode_from_answers.1,
+            mode_from_answers.2,
+        );
+        let mode = mode_from_answers.3;
         if dry_run {
             let params = json!({ "path": path });
             let ctx = OpContext::new(repo_root.clone());
@@ -444,7 +462,12 @@ fn run(cli: Cli) -> i32 {
             "email": email.unwrap_or_default()
         });
         let ctx = OpContext::new(repo_root.clone());
-        match ops::execute(repowill_core::Operation::ProjectInit, params, &ctx) {
+        let op = if mode == "adopt" {
+            repowill_core::Operation::ProjectAdopt
+        } else {
+            repowill_core::Operation::ProjectInit
+        };
+        match ops::execute(op, params, &ctx) {
             Ok(data) => {
                 println!(
                     "{}",
