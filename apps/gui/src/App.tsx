@@ -29,6 +29,7 @@ function App() {
   const [projects, setProjects] = useState<string>("");
   const [initName, setInitName] = useState<string>("");
   const [initEmail, setInitEmail] = useState<string>("");
+  const [initPath, setInitPath] = useState<string>(".");
 
   useEffect(() => {
     invoke<OpResult>("rw_op", { op: "app.version", params: null })
@@ -130,13 +131,20 @@ function App() {
         {page === "setup" && (
           <>
             <h1>Setup</h1>
+            <div style={{ marginBottom: 8 }}>
+              <input
+                placeholder="path"
+                value={initPath}
+                onChange={(e) => setInitPath(e.target.value)}
+              />
+            </div>
             <button
               type="button"
               onClick={async () => {
                 try {
                   const r = await invoke<OpResult>("rw_op", {
                     op: "project.detect",
-                    params: { path: "." },
+                    params: { path: initPath },
                   });
                   setDetectResult(JSON.stringify(r.result));
                   setError("");
@@ -154,7 +162,7 @@ function App() {
                 try {
                   const r = await invoke<OpResult>("rw_op", {
                     op: "project.plan",
-                    params: { path: "." },
+                    params: { path: initPath },
                   });
                   setDetectResult(JSON.stringify(r.result));
                   setError("");
@@ -185,7 +193,11 @@ function App() {
                 try {
                   const r = await invoke<OpResult>("rw_op", {
                     op: "project.init",
-                    params: { path: ".", name: initName, email: initEmail },
+                    params: {
+                      path: initPath,
+                      name: initName,
+                      email: initEmail,
+                    },
                   });
                   setDetectResult(JSON.stringify(r.result));
                   setError("");
