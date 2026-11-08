@@ -25,6 +25,8 @@ function App() {
   const [error, setError] = useState<string>("");
   const [policy, setPolicy] = useState<string>("");
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [detectResult, setDetectResult] = useState<string>("");
+  const [projects, setProjects] = useState<string>("");
 
   useEffect(() => {
     invoke<OpResult>("rw_op", { op: "app.version", params: null })
@@ -33,6 +35,11 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (page === "projects") {
+      invoke<OpResult>("rw_op", { op: "project.list", params: null })
+        .then((r) => setProjects(JSON.stringify(r.result)))
+        .catch((e) => setError(String(e)));
+    }
     if (page === "policy") {
       invoke<OpResult>("rw_op", { op: "policy.show", params: null })
         .then((r) => {
@@ -115,6 +122,37 @@ function App() {
                 ))}
               </ul>
             )}
+            {error && <p style={{ color: "red" }}>{error}</p>}
+          </>
+        )}
+        {page === "setup" && (
+          <>
+            <h1>Setup</h1>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const r = await invoke<OpResult>("rw_op", {
+                    op: "project.detect",
+                    params: { path: "." },
+                  });
+                  setDetectResult(JSON.stringify(r.result));
+                  setError("");
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+            >
+              Detect
+            </button>
+            {detectResult && <pre>{detectResult}</pre>}
+            {error && <p style={{ color: "red" }}>{error}</p>}
+          </>
+        )}
+        {page === "projects" && (
+          <>
+            <h1>Projects</h1>
+            <pre>{projects}</pre>
             {error && <p style={{ color: "red" }}>{error}</p>}
           </>
         )}

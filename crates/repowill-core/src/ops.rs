@@ -11,6 +11,7 @@ use crate::config::{
     ENGINE_VERSION, builtin_policy, load_policy_file, policy_to_toml, validate, validate_source,
 };
 use crate::git;
+use crate::project;
 use crate::state::{KeyStore, StateStore};
 use repowill_model::Operation;
 use serde::Serialize;
@@ -117,6 +118,13 @@ pub fn implemented_ops() -> &'static [Operation] {
         Operation::AuditLog,
         Operation::AuditVerify,
         Operation::AuditExport,
+        Operation::ProjectDetect,
+        Operation::ProjectPlan,
+        Operation::ProjectInit,
+        Operation::ProjectAdopt,
+        Operation::ProjectList,
+        Operation::ProjectAdd,
+        Operation::ProjectForget,
     ]
 }
 
@@ -151,6 +159,13 @@ pub fn execute(op: Operation, params: Value, ctx: &OpContext) -> Result<Value, R
             Operation::AuditLog => audit_log(ctx, params),
             Operation::AuditVerify => audit_verify(ctx),
             Operation::AuditExport => audit_export(ctx, params),
+            Operation::ProjectDetect => project_detect(ctx, params),
+            Operation::ProjectPlan => project_plan(ctx, params),
+            Operation::ProjectInit => project_init(ctx, params),
+            Operation::ProjectAdopt => project_adopt(ctx, params),
+            Operation::ProjectList => project_list(ctx),
+            Operation::ProjectAdd => project_add(ctx, params),
+            Operation::ProjectForget => project_forget(ctx, params),
             _ => Err(RwError::planned(op)),
         }
     };
@@ -544,6 +559,132 @@ fn audit_export(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     Ok(json!({ "out": out }))
 }
 
+fn project_detect(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    Ok(project::detect(&root))
+}
+
+fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let detection = project::detect(&root);
+    let stacks: Vec<String> = detection
+        .get("stacks")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let files = project::plan_files(&root, &stacks);
+    let file_list: Vec<Value> = files
+        .iter()
+        .map(|(rel, content)| json!({ "path": rel, "bytes": content.len(), "exists": root.join(rel).exists() }))
+        .collect();
+    Ok(json!({ "root": root, "detection": detection, "files": file_list }))
+}
+
+fn project_init(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let name = params
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("Project");
+    let email = params
+        .get("email")
+        .and_then(Value::as_str)
+        .unwrap_or("user@example.com");
+    project::apply_init(&root, name, email).map_err(policy_error)
+}
+
+fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    // adopt = detect + plan + apply (same as init but for existing repo)
+    let detection = project::detect(&root);
+    let name = params
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("Project");
+    let email = params
+        .get("email")
+        .and_then(Value::as_str)
+        .unwrap_or("user@example.com");
+    // Only write files that don't exist yet
+    let stacks: Vec<String> = detection
+        .get("stacks")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let files = project::plan_files(&root, &stacks);
+    let mut written = 0usize;
+    for (rel, content) in &files {
+        let path = root.join(rel);
+        if !path.exists() {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).map_err(policy_error)?;
+            }
+            std::fs::write(&path, content).map_err(policy_error)?;
+            written += 1;
+        }
+    }
+    // git config identity
+    let git = crate::git::Git::new().map_err(policy_error)?;
+    let _ = git.run(&["config", "user.name", name], Some(&root));
+    let _ = git.run(&["config", "user.email", email], Some(&root));
+    Ok(json!({ "root": root, "detection": detection, "written": written }))
+}
+
+fn project_list(ctx: &OpContext) -> Result<Value, RwError> {
+    let _ = ctx;
+    project::project_list().map_err(policy_error)
+}
+
+fn project_add(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    project::project_add(&root).map_err(policy_error)
+}
+
+fn project_forget(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
+    let root = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| ctx.repo_root.clone())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    project::project_forget(&root).map_err(policy_error)
+}
+
 fn json_to_toml_value(value: &Value) -> toml::Value {
     match value {
         Value::Null => toml::Value::String(String::new()),
@@ -583,7 +724,7 @@ mod tests {
     #[test]
     fn planned_operation_returns_usage_error() {
         let ctx = OpContext::new(None);
-        let error = execute(Operation::ProjectDetect, json!({}), &ctx).unwrap_err();
+        let error = execute(Operation::ProjectUpdate, json!({}), &ctx).unwrap_err();
         assert_eq!(error.exit_code(), 2);
         assert_eq!(error.code, "RW-E1000");
     }

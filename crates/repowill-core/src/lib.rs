@@ -9,6 +9,7 @@ pub mod config;
 pub mod git;
 pub mod ops;
 pub mod platform;
+pub mod project;
 pub mod state;
 
 #[cfg(test)]
