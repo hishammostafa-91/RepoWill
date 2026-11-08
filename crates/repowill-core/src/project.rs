@@ -295,7 +295,10 @@ pub fn apply_update(
         commit_args.push(rel.as_str());
     }
     let result = git.run(&commit_args, Some(root))?;
-    if result.code != Some(0) && !result.stdout.contains("nothing to commit") {
+    if result.code != Some(0)
+        && !result.stdout.contains("nothing to commit")
+        && !result.stderr.contains("nothing to commit")
+    {
         return Err(format!(
             "git commit failed: {} (stdout: {})",
             result.stderr, result.stdout
