@@ -184,30 +184,27 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
 }
 
 pub fn gitattributes_content() -> String {
-    "* text=auto eol=lf\n".to_string()
+    include_str!("../../../assets/templates/gitattributes.txt").to_string()
 }
 
 pub fn editorconfig_content() -> String {
-    "root = true\n\n[*]\nend_of_line = lf\ninsert_final_newline = true\ncharset = utf-8\n"
-        .to_string()
+    include_str!("../../../assets/templates/editorconfig.txt").to_string()
 }
 
 pub fn readme_content() -> String {
-    "# Project\n\n".to_string()
+    include_str!("../../../assets/templates/readme.md").to_string()
 }
 
 pub fn changelog_content() -> String {
-    "# Changelog\n\nAll notable changes to this project will be documented in this file.\n"
-        .to_string()
+    include_str!("../../../assets/templates/changelog.md").to_string()
 }
 
 pub fn gitignore_content() -> String {
-    "# RepoWill\n.repowill/local.toml\n.repowill/ops.lock\n".to_string()
+    include_str!("../../../assets/templates/gitignore.txt").to_string()
 }
 
 pub fn license_content() -> String {
-    "MIT License\n\nCopyright (c) \n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
-        .to_string()
+    include_str!("../../../assets/templates/license-mit.txt").to_string()
 }
 
 pub fn policy_content() -> String {
