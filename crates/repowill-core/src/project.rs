@@ -44,32 +44,32 @@ pub fn detect(root: &Path) -> Value {
         "recommended"
     };
 
-    // Proposed gates based on stacks.
-    let mut proposed_gates = vec!["g-qa-format", "g-qa-lint", "g-qa-build"];
+    // Proposed gate categories based on stacks (actual gate IDs come from the catalog in WP-04).
+    let mut proposed_gate_categories = vec!["format", "lint", "build"];
     if stacks.contains(&"rust") {
-        proposed_gates.push("g-qa-cargo-test");
-        proposed_gates.push("g-qa-cargo-clippy");
+        proposed_gate_categories.push("test");
+        proposed_gate_categories.push("clippy");
     }
     if stacks.contains(&"node") {
-        proposed_gates.push("g-qa-eslint");
-        proposed_gates.push("g-qa-tsc");
-        proposed_gates.push("g-qa-vitest");
+        proposed_gate_categories.push("eslint");
+        proposed_gate_categories.push("typecheck");
+        proposed_gate_categories.push("test");
     }
     if stacks.contains(&"python") {
-        proposed_gates.push("g-qa-ruff");
-        proposed_gates.push("g-qa-pytest");
+        proposed_gate_categories.push("ruff");
+        proposed_gate_categories.push("pytest");
     }
 
     // Proposed adapters based on stacks.
     let mut proposed_adapters = Vec::new();
     if stacks.contains(&"node") {
-        proposed_adapters.push("node");
+        proposed_adapters.push("biome");
     }
     if stacks.contains(&"rust") {
-        proposed_adapters.push("rust");
+        proposed_adapters.push("cargo");
     }
     if stacks.contains(&"python") {
-        proposed_adapters.push("python");
+        proposed_adapters.push("ruff");
     }
 
     let mut hook_managers = Vec::new();
@@ -126,7 +126,7 @@ pub fn detect(root: &Path) -> Value {
         "agent_configs": agent_configs,
         "existing_files": existing_files,
         "proposed_preset": proposed_preset,
-        "proposed_gates": proposed_gates,
+        "proposed_gate_categories": proposed_gate_categories,
         "proposed_adapters": proposed_adapters
     })
 }
