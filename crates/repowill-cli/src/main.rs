@@ -62,6 +62,56 @@ enum Commands {
         #[command(subcommand)]
         command: AuditCommand,
     },
+    /// Detect project stack and existing configuration.
+    #[command(after_help = "Examples:\n  repowill detect\n  repowill detect /path/to/repo")]
+    Detect {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
+    /// Initialise a new repository.
+    #[command(
+        after_help = "Examples:\n  repowill init /path/to/repo --name Foo --email foo@bar.com"
+    )]
+    Init {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        email: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        answers: Option<PathBuf>,
+    },
+    /// Adopt an existing repository.
+    #[command(after_help = "Examples:\n  repowill adopt .")]
+    Adopt {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        email: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Manage the projects registry.
+    #[command(after_help = "Examples:\n  repowill projects list")]
+    Projects {
+        #[command(subcommand)]
+        command: ProjectsCommand,
+    },
+    /// Re-apply preset/templates to an initialised project.
+    #[command(after_help = "Examples:\n  repowill update\n  repowill update --path .")]
+    Update {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        email: Option<String>,
+    },
     /// Run a raw operation from JSON.
     #[command(after_help = "Examples:\n  repowill op '{\"op\":\"app.version\"}'")]
     Op {
@@ -131,6 +181,16 @@ enum PolicyCommand {
         #[arg(long)]
         to: Option<PathBuf>,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum ProjectsCommand {
+    #[command(after_help = "Examples:\n  repowill projects list")]
+    List,
+    #[command(after_help = "Examples:\n  repowill projects add /path")]
+    Add { path: PathBuf },
+    #[command(after_help = "Examples:\n  repowill projects forget /path")]
+    Forget { path: PathBuf },
 }
 
 #[derive(Subcommand, Debug)]
@@ -260,6 +320,320 @@ fn run(cli: Cli) -> i32 {
         }
     }
 
+    if let Commands::Detect { path } = command {
+        let params = json!({ "path": path });
+        let mut ctx = OpContext::new(repo_root.clone());
+        if cli.json && cli.progress {
+            ctx = ctx.with_progress(|event| {
+                let line = serde_json::to_string(&event).unwrap_or_default();
+                eprintln!("{line}");
+            });
+        }
+        match ops::execute(repowill_core::Operation::ProjectDetect, params, &ctx) {
+            Ok(data) => {
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":"project.detect","data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
+                return 0;
+            }
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                return error.exit_code();
+            }
+        }
+    }
+
+    if let Commands::Init {
+        path,
+        name,
+        email,
+        dry_run,
+        answers,
+    } = command
+    {
+        let has_answers = answers.is_some();
+        let mode_from_answers = if let Some(answers_path) = answers {
+            let text = std::fs::read_to_string(&answers_path).unwrap_or_default();
+            let text = text.trim_start_matches('\u{feff}');
+            let parsed: toml::Value =
+                toml::from_str(text).unwrap_or(toml::Value::Table(Default::default()));
+            let p = parsed
+                .get("path")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from)
+                .unwrap_or(path);
+            let identity_name = parsed
+                .get("identity")
+                .and_then(|v| v.get("name"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or_else(|| {
+                    parsed
+                        .get("identity_name")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
+                .or_else(|| {
+                    parsed
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                });
+            let n = identity_name.or(name);
+            // Store extra answers fields for future use (description, preset, license, etc.)
+            let _description = parsed
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let _preset = parsed
+                .get("preset")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let _project_license = parsed
+                .get("project_license")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let e = parsed
+                .get("identity")
+                .and_then(|v| v.get("email"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or(email);
+            let m = parsed
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| "new".to_string());
+            (p, n, e, m)
+        } else {
+            (path, name, email, "new".to_string())
+        };
+        let (path, name, email) = (
+            mode_from_answers.0,
+            mode_from_answers.1,
+            mode_from_answers.2,
+        );
+        let mode = mode_from_answers.3;
+        if dry_run {
+            let params = json!({ "path": path });
+            let ctx = OpContext::new(repo_root.clone());
+            match ops::execute(repowill_core::Operation::ProjectPlan, params, &ctx) {
+                Ok(data) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                    return 0;
+                }
+                Err(error) => {
+                    eprintln!("{}: {}", error.code, error.message);
+                    return error.exit_code();
+                }
+            }
+        }
+        let (path, name, email) = if name.is_none() && !has_answers && !cli.non_interactive {
+            use dialoguer::{Confirm, Input, Select};
+            let path_str: String = Input::new()
+                .with_prompt("Project path")
+                .default(path.to_string_lossy().to_string())
+                .interact_text()
+                .unwrap_or_default();
+            let name: String = Input::new()
+                .with_prompt("Project name")
+                .default("my-project".to_string())
+                .interact_text()
+                .unwrap_or_default();
+            let email: String = Input::new()
+                .with_prompt("Owner email")
+                .default("user@example.com".to_string())
+                .interact_text()
+                .unwrap_or_default();
+            let detect_params = json!({ "path": path_str.clone() });
+            let ctx = OpContext::new(repo_root.clone());
+            if let Ok(d) =
+                ops::execute(repowill_core::Operation::ProjectDetect, detect_params, &ctx)
+            {
+                println!("Detected stacks: {:?}", d.get("stacks"));
+            }
+            let presets = ["starter", "recommended", "strict", "maximum"];
+            let preset_idx = Select::new()
+                .with_prompt("Preset")
+                .items(presets)
+                .default(1)
+                .interact()
+                .unwrap_or(1);
+            let _preset = presets[preset_idx];
+            let apply = Confirm::new()
+                .with_prompt("Apply now?")
+                .default(true)
+                .interact()
+                .unwrap_or(false);
+            if !apply {
+                return 0;
+            }
+            (PathBuf::from(path_str), Some(name), Some(email))
+        } else {
+            (path, name, email)
+        };
+
+        let params = json!({
+            "path": path,
+            "name": name.unwrap_or_default(),
+            "email": email.unwrap_or_default()
+        });
+        let ctx = OpContext::new(repo_root.clone());
+        let op = if mode == "adopt" {
+            repowill_core::Operation::ProjectAdopt
+        } else {
+            repowill_core::Operation::ProjectInit
+        };
+        match ops::execute(op, params, &ctx) {
+            Ok(data) => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&data).unwrap_or_default()
+                );
+                return 0;
+            }
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                return error.exit_code();
+            }
+        }
+    }
+
+    if let Commands::Adopt {
+        path,
+        name,
+        email,
+        dry_run,
+    } = command
+    {
+        if dry_run {
+            let params = json!({ "path": path });
+            let ctx = OpContext::new(repo_root.clone());
+            match ops::execute(repowill_core::Operation::ProjectPlan, params, &ctx) {
+                Ok(data) => {
+                    if cli.json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(
+                                &json!({"ok":true,"op":"project.init","data":data})
+                            )
+                            .unwrap_or_default()
+                        );
+                    } else {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&data).unwrap_or_default()
+                        );
+                    }
+                    return 0;
+                }
+                Err(error) => {
+                    eprintln!("{}: {}", error.code, error.message);
+                    return error.exit_code();
+                }
+            }
+        }
+        let params = json!({ "path": path, "name": name.unwrap_or_default(), "email": email.unwrap_or_default() });
+        let ctx = OpContext::new(repo_root.clone());
+        match ops::execute(repowill_core::Operation::ProjectAdopt, params, &ctx) {
+            Ok(data) => {
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":"project.adopt","data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
+                return 0;
+            }
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                return error.exit_code();
+            }
+        }
+    }
+
+    if let Commands::Update { path, name, email } = command {
+        let params = json!({
+            "path": path,
+            "name": name.unwrap_or_default(),
+            "email": email.unwrap_or_default()
+        });
+        let ctx = OpContext::new(repo_root.clone());
+        match ops::execute(repowill_core::Operation::ProjectUpdate, params, &ctx) {
+            Ok(data) => {
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":"project.update","data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
+                return 0;
+            }
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                return error.exit_code();
+            }
+        }
+    }
+
+    if let Commands::Projects { command } = command {
+        let (op, params) = match command {
+            ProjectsCommand::List => (repowill_core::Operation::ProjectList, json!({})),
+            ProjectsCommand::Add { path } => (
+                repowill_core::Operation::ProjectAdd,
+                json!({ "path": path }),
+            ),
+            ProjectsCommand::Forget { path } => (
+                repowill_core::Operation::ProjectForget,
+                json!({ "path": path }),
+            ),
+        };
+        let ctx = OpContext::new(repo_root.clone());
+        match ops::execute(op, params, &ctx) {
+            Ok(data) => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&data).unwrap_or_default()
+                );
+                return 0;
+            }
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                return error.exit_code();
+            }
+        }
+    }
+
     if let Commands::Audit { command } = command {
         let (op, params) = match command {
             AuditCommand::Verify => (repowill_core::Operation::AuditVerify, json!({})),
@@ -326,6 +700,11 @@ fn run(cli: Cli) -> i32 {
         Commands::Version => (repowill_core::Operation::AppVersion, json!({})),
         Commands::Op { .. } => unreachable!(),
         Commands::Audit { .. } => unreachable!(),
+        Commands::Detect { .. } => unreachable!(),
+        Commands::Init { .. } => unreachable!(),
+        Commands::Adopt { .. } => unreachable!(),
+        Commands::Projects { .. } => unreachable!(),
+        Commands::Update { .. } => unreachable!(),
         Commands::Config { command } => match command {
             ConfigCommand::Get { key } => {
                 (repowill_core::Operation::ConfigGet, json!({ "key": key }))

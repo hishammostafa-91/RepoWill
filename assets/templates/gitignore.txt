@@ -1,0 +1,3 @@
+# RepoWill
+.repowill/local.toml
+.repowill/ops.lock
