@@ -144,17 +144,36 @@ fn git_config_hooks_path(root: &Path) -> Option<String> {
         })
 }
 
-pub fn plan_files(root: &Path, _stacks: &[String]) -> Vec<(String, String)> {
+pub fn plan_files(root: &Path, stacks: &[String]) -> Vec<(String, String)> {
     let _ = root;
-    vec![
+    let files = vec![
         (".gitattributes".to_string(), gitattributes_content()),
-        (".gitignore".to_string(), gitignore_content()),
+        (".gitignore".to_string(), gitignore_for_stacks(stacks)),
         (".editorconfig".to_string(), editorconfig_content()),
         ("README.md".to_string(), readme_content()),
         ("LICENSE".to_string(), license_content()),
         ("CHANGELOG.md".to_string(), changelog_content()),
         (".repowill/policy.toml".to_string(), policy_content()),
-    ]
+    ];
+    // Add stack-specific gitignore entries by appending to the base .gitignore.
+    files
+}
+
+pub fn gitignore_for_stacks(stacks: &[String]) -> String {
+    let mut content = String::from("# RepoWill\n.repowill/local.toml\n.repowill/ops.lock\n");
+    for stack in stacks {
+        match stack.as_str() {
+            "node" => content
+                .push_str("\n# Node\nnode_modules/\n.next/\ndist/\n*.log\n.env\n.env.local\n"),
+            "rust" => content.push_str("\n# Rust\ntarget/\n"),
+            "python" => content.push_str("\n# Python\n__pycache__/\n*.pyc\n.venv/\nvenv/\n"),
+            "go" => content.push_str("\n# Go\nbin/\n*.exe\n*.test\n*.out\n"),
+            "dotnet" => content.push_str("\n# .NET\nbin/\nobj/\n*.user\n*.suo\n"),
+            "java" => content.push_str("\n# Java\ntarget/\n*.class\n*.jar\n.gradle/\nbuild/\n"),
+            _ => {}
+        }
+    }
+    content
 }
 
 pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Result<Value, String> {
@@ -385,12 +404,63 @@ pub fn unified_diff(old: &str, new: &str, path: &str) -> String {
     let mut out = String::new();
     out.push_str(&format!("--- a/{path}\n"));
     out.push_str(&format!("+++ b/{path}\n"));
-    // Simple: show all old lines as removed, all new as added (not a real diff, but informative).
-    for line in &old_lines {
-        out.push_str(&format!("-{line}\n"));
+    // Compute LCS.
+    let m = old_lines.len();
+    let n = new_lines.len();
+    let mut dp = vec![vec![0usize; n + 1]; m + 1];
+    for i in (0..m).rev() {
+        for j in (0..n).rev() {
+            if old_lines[i] == new_lines[j] {
+                dp[i][j] = dp[i + 1][j + 1] + 1;
+            } else {
+                dp[i][j] = dp[i + 1][j].max(dp[i][j + 1]);
+            }
+        }
     }
-    for line in &new_lines {
-        out.push_str(&format!("+{line}\n"));
+    // Walk the LCS to produce hunks.
+    let mut i = 0;
+    let mut j = 0;
+    type Hunk = (usize, usize, Vec<(char, String)>);
+    let mut hunks: Vec<Hunk> = Vec::new();
+    let mut current: Vec<(char, String)> = Vec::new();
+    let mut old_start = 1;
+    let mut new_start = 1;
+    while i < m || j < n {
+        if i < m && j < n && old_lines[i] == new_lines[j] {
+            current.push((' ', old_lines[i].to_string()));
+            i += 1;
+            j += 1;
+        } else if j < n && (i == m || dp[i][j + 1] >= dp[i + 1][j]) {
+            if current.is_empty() {
+                new_start = j + 1;
+                old_start = i + 1;
+            }
+            current.push(('+', new_lines[j].to_string()));
+            j += 1;
+        } else if i < m {
+            if current.is_empty() {
+                new_start = j + 1;
+                old_start = i + 1;
+            }
+            current.push(('-', old_lines[i].to_string()));
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    if !current.is_empty() {
+        hunks.push((old_start, new_start, current));
+    }
+    for (os, ns, lines) in &hunks {
+        let old_count = lines.iter().filter(|(c, _)| *c != '+').count();
+        let new_count = lines.iter().filter(|(c, _)| *c != '-').count();
+        out.push_str(&format!(
+            "@@ -{},{} +{},{} @@\n",
+            os, old_count, ns, new_count
+        ));
+        for (c, line) in lines {
+            out.push_str(&format!("{c}{line}\n"));
+        }
     }
     out
 }
