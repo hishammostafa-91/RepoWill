@@ -38,11 +38,39 @@ pub fn detect(root: &Path) -> Value {
     }
 
     // Proposed preset based on stacks.
-    let proposed_preset = if stacks.iter().any(|s| *s == "rust" || *s == "go") {
+    let proposed_preset = if stacks.contains(&"rust") || stacks.contains(&"go") {
         "strict"
     } else {
         "recommended"
     };
+
+    // Proposed gates based on stacks.
+    let mut proposed_gates = vec!["g-qa-format", "g-qa-lint", "g-qa-build"];
+    if stacks.contains(&"rust") {
+        proposed_gates.push("g-qa-cargo-test");
+        proposed_gates.push("g-qa-cargo-clippy");
+    }
+    if stacks.contains(&"node") {
+        proposed_gates.push("g-qa-eslint");
+        proposed_gates.push("g-qa-tsc");
+        proposed_gates.push("g-qa-vitest");
+    }
+    if stacks.contains(&"python") {
+        proposed_gates.push("g-qa-ruff");
+        proposed_gates.push("g-qa-pytest");
+    }
+
+    // Proposed adapters based on stacks.
+    let mut proposed_adapters = Vec::new();
+    if stacks.contains(&"node") {
+        proposed_adapters.push("node");
+    }
+    if stacks.contains(&"rust") {
+        proposed_adapters.push("rust");
+    }
+    if stacks.contains(&"python") {
+        proposed_adapters.push("python");
+    }
 
     let mut hook_managers = Vec::new();
     if root.join(".husky").exists() {
@@ -97,7 +125,9 @@ pub fn detect(root: &Path) -> Value {
         "hook_managers": hook_managers,
         "agent_configs": agent_configs,
         "existing_files": existing_files,
-        "proposed_preset": proposed_preset
+        "proposed_preset": proposed_preset,
+        "proposed_gates": proposed_gates,
+        "proposed_adapters": proposed_adapters
     })
 }
 
