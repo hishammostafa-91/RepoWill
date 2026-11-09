@@ -594,12 +594,17 @@ fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .iter()
         .map(|(rel, content)| {
             let existing = std::fs::read_to_string(root.join(rel)).ok();
+            let diff = existing
+                .as_ref()
+                .map(|cur| project::unified_diff(cur, content, rel))
+                .unwrap_or_else(|| project::unified_diff("", content, rel));
             json!({
                 "path": rel,
                 "bytes": content.len(),
                 "exists": root.join(rel).exists(),
                 "content": content,
-                "current": existing
+                "current": existing,
+                "diff": diff
             })
         })
         .collect();

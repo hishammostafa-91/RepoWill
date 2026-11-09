@@ -334,6 +334,22 @@ pub fn apply_update(
     Ok(json!({ "root": root, "updated": updated, "committed": committed }))
 }
 
+pub fn unified_diff(old: &str, new: &str, path: &str) -> String {
+    let old_lines: Vec<&str> = old.lines().collect();
+    let new_lines: Vec<&str> = new.lines().collect();
+    let mut out = String::new();
+    out.push_str(&format!("--- a/{path}\n"));
+    out.push_str(&format!("+++ b/{path}\n"));
+    // Simple: show all old lines as removed, all new as added (not a real diff, but informative).
+    for line in &old_lines {
+        out.push_str(&format!("-{line}\n"));
+    }
+    for line in &new_lines {
+        out.push_str(&format!("+{line}\n"));
+    }
+    out
+}
+
 pub fn project_forget(root: &Path) -> Result<Value, String> {
     let path = project_list_path();
     if !path.exists() {

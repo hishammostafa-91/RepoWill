@@ -392,9 +392,18 @@ fn run(cli: Cli) -> i32 {
                 });
             let n = identity_name.or(name);
             // Store extra answers fields for future use (description, preset, license, etc.)
-            let _description = parsed.get("description").and_then(|v| v.as_str()).map(str::to_string);
-            let _preset = parsed.get("preset").and_then(|v| v.as_str()).map(str::to_string);
-            let _project_license = parsed.get("project_license").and_then(|v| v.as_str()).map(str::to_string);
+            let _description = parsed
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let _preset = parsed
+                .get("preset")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let _project_license = parsed
+                .get("project_license")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
             let e = parsed
                 .get("identity")
                 .and_then(|v| v.get("email"))
@@ -542,10 +551,20 @@ fn run(cli: Cli) -> i32 {
         let ctx = OpContext::new(repo_root.clone());
         match ops::execute(repowill_core::Operation::ProjectAdopt, params, &ctx) {
             Ok(data) => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&data).unwrap_or_default()
-                );
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":"project.adopt","data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
                 return 0;
             }
             Err(error) => {
