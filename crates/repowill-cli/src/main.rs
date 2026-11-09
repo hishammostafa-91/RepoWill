@@ -83,6 +83,8 @@ enum Commands {
         dry_run: bool,
         #[arg(long)]
         answers: Option<PathBuf>,
+        #[arg(long)]
+        resume: bool,
     },
     /// Adopt an existing repository.
     #[command(after_help = "Examples:\n  repowill adopt .")]
@@ -360,6 +362,7 @@ fn run(cli: Cli) -> i32 {
         email,
         dry_run,
         answers,
+        resume,
     } = command
     {
         let has_answers = answers.is_some();
@@ -490,7 +493,8 @@ fn run(cli: Cli) -> i32 {
         let params = json!({
             "path": path,
             "name": name.unwrap_or_default(),
-            "email": email.unwrap_or_default()
+            "email": email.unwrap_or_default(),
+            "resume": resume
         });
         let ctx = OpContext::new(repo_root.clone());
         let op = if mode == "adopt" {

@@ -164,7 +164,10 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        // Backup existing file before overwriting (FR-INIT-007).
+        let _ = crate::platform::fs::backup_file(&path);
+        // Atomic write (NFR-REL-002).
+        crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(|e| e.to_string())?;
         written.push(rel.clone());
     }
     let git = crate::git::Git::new()?;
@@ -311,7 +314,9 @@ pub fn apply_update(
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            std::fs::write(&path, content).map_err(|e| e.to_string())?;
+            let _ = crate::platform::fs::backup_file(&path);
+            crate::platform::fs::atomic_write(&path, content.as_bytes())
+                .map_err(|e| e.to_string())?;
             updated.push(rel.clone());
         }
     }
