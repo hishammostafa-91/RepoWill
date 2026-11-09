@@ -139,6 +139,18 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         if result.code != Some(0) {
             return Err(format!("git init failed: {}", result.stderr));
         }
+    } else {
+        // Existing repo: check if it has commits.
+        let git = crate::git::Git::new()?;
+        let result = git.run(&["rev-parse", "--verify", "HEAD"], Some(root));
+        if let Ok(r) = result
+            && r.code == Some(0)
+        {
+            // Already has commits; don't commit on main. Use adopt instead.
+            return Err(
+                "repository already has commits; use `adopt` instead of `init`".to_string(),
+            );
+        }
     }
     let files = plan_files(root, &[]);
     let mut written = Vec::new();
@@ -187,13 +199,11 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     let _ = store.ensure();
     let token_id = store
         .create_token("init", root.to_string_lossy().as_ref(), None, None, 120)
-        .ok();
+        .map_err(|e| format!("failed to create init token: {e}"))?;
 
     let git = crate::git::Git::new()?;
     let mut env = git.env.clone();
-    if let Some(ref tid) = token_id {
-        env.push(("REPOWILL_INTERNAL_TOKEN".to_string(), tid.clone()));
-    }
+    env.push(("REPOWILL_TOKEN".to_string(), token_id.clone()));
     let mut argv: Vec<String> = vec![git.executable.to_string_lossy().into_owned()];
     argv.push("-C".to_string());
     argv.push(root.to_string_lossy().into_owned());
@@ -417,8 +427,9 @@ mod tests {
     fn apply_init_idempotent() {
         let dir = tempdir().unwrap();
         apply_init(dir.path(), "Test", "test@example.com").unwrap();
-        let result = apply_init(dir.path(), "Test", "test@example.com").unwrap();
-        assert_eq!(result["committed"], false);
+        // Re-running init on an existing repo should not commit on main.
+        let result = apply_init(dir.path(), "Test", "test@example.com");
+        assert!(result.is_err());
     }
 
     #[test]
