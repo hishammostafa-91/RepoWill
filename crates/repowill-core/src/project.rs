@@ -160,17 +160,32 @@ pub fn plan_files(root: &Path, stacks: &[String]) -> Vec<(String, String)> {
 }
 
 pub fn gitignore_for_stacks(stacks: &[String]) -> String {
-    let mut content = String::from("# RepoWill\n.repowill/local.toml\n.repowill/ops.lock\n*.bak\n");
+    let base = include_str!("../../../assets/templates/gitignore.txt");
+    let mut content = String::from(base);
+    if !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str("*.bak\n");
     for stack in stacks {
-        match stack.as_str() {
-            "node" => content
-                .push_str("\n# Node\nnode_modules/\n.next/\ndist/\n*.log\n.env\n.env.local\n"),
-            "rust" => content.push_str("\n# Rust\ntarget/\n"),
-            "python" => content.push_str("\n# Python\n__pycache__/\n*.pyc\n.venv/\nvenv/\n"),
-            "go" => content.push_str("\n# Go\nbin/\n*.exe\n*.test\n*.out\n"),
-            "dotnet" => content.push_str("\n# .NET\nbin/\nobj/\n*.user\n*.suo\n"),
-            "java" => content.push_str("\n# Java\ntarget/\n*.class\n*.jar\n.gradle/\nbuild/\n"),
-            _ => {}
+        let template = match stack.as_str() {
+            "node" => Some(include_str!("../../../assets/templates/gitignore-node.txt")),
+            "rust" => Some(include_str!("../../../assets/templates/gitignore-rust.txt")),
+            "python" => Some(include_str!(
+                "../../../assets/templates/gitignore-python.txt"
+            )),
+            "go" => Some(include_str!("../../../assets/templates/gitignore-go.txt")),
+            "dotnet" => Some(include_str!(
+                "../../../assets/templates/gitignore-dotnet.txt"
+            )),
+            "java" => Some(include_str!("../../../assets/templates/gitignore-java.txt")),
+            _ => None,
+        };
+        if let Some(t) = template {
+            content.push('\n');
+            content.push_str(t);
+            if !t.ends_with('\n') {
+                content.push('\n');
+            }
         }
     }
     content
