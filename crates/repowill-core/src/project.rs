@@ -201,7 +201,18 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
             );
         }
     }
-    let files = plan_files(root, &[]);
+    let detection = detect(root);
+    let stacks: Vec<String> = detection
+        .get("stacks")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let files = plan_files(root, &stacks);
     let mut written = Vec::new();
     let mut skipped = Vec::new();
     for (rel, content) in &files {
@@ -354,7 +365,18 @@ pub fn apply_update(
     if !root.join(".git").exists() {
         return Err("not a git repository".to_string());
     }
-    let files = plan_files(root, &[]);
+    let detection = detect(root);
+    let stacks: Vec<String> = detection
+        .get("stacks")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let files = plan_files(root, &stacks);
     let mut updated = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
