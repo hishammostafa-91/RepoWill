@@ -83,6 +83,8 @@ enum Commands {
         dry_run: bool,
         #[arg(long)]
         answers: Option<PathBuf>,
+        #[arg(long)]
+        resume: bool,
     },
     /// Adopt an existing repository.
     #[command(after_help = "Examples:\n  repowill adopt .")]
@@ -360,6 +362,7 @@ fn run(cli: Cli) -> i32 {
         email,
         dry_run,
         answers,
+        resume,
     } = command
     {
         let has_answers = answers.is_some();
@@ -392,18 +395,22 @@ fn run(cli: Cli) -> i32 {
                 });
             let n = identity_name.or(name);
             // Store extra answers fields for future use (description, preset, license, etc.)
-            let _description = parsed
+            let description = parsed
                 .get("description")
                 .and_then(|v| v.as_str())
                 .map(str::to_string);
-            let _preset = parsed
+            let preset = parsed
                 .get("preset")
                 .and_then(|v| v.as_str())
                 .map(str::to_string);
-            let _project_license = parsed
+            let project_license = parsed
                 .get("project_license")
                 .and_then(|v| v.as_str())
                 .map(str::to_string);
+            let files = parsed.get("files").cloned();
+            let stacks = parsed.get("stacks").cloned();
+            let agents = parsed.get("agents").cloned();
+            let _ = (description, preset, project_license, files, stacks, agents);
             let e = parsed
                 .get("identity")
                 .and_then(|v| v.get("email"))
@@ -490,7 +497,8 @@ fn run(cli: Cli) -> i32 {
         let params = json!({
             "path": path,
             "name": name.unwrap_or_default(),
-            "email": email.unwrap_or_default()
+            "email": email.unwrap_or_default(),
+            "resume": resume
         });
         let ctx = OpContext::new(repo_root.clone());
         let op = if mode == "adopt" {
@@ -500,10 +508,20 @@ fn run(cli: Cli) -> i32 {
         };
         match ops::execute(op, params, &ctx) {
             Ok(data) => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&data).unwrap_or_default()
-                );
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":op.as_str(),"data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
                 return 0;
             }
             Err(error) => {
@@ -621,10 +639,20 @@ fn run(cli: Cli) -> i32 {
         let ctx = OpContext::new(repo_root.clone());
         match ops::execute(op, params, &ctx) {
             Ok(data) => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&data).unwrap_or_default()
-                );
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":op.as_str(),"data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
                 return 0;
             }
             Err(error) => {

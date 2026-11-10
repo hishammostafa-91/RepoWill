@@ -38,11 +38,39 @@ pub fn detect(root: &Path) -> Value {
     }
 
     // Proposed preset based on stacks.
-    let proposed_preset = if stacks.iter().any(|s| *s == "rust" || *s == "go") {
+    let proposed_preset = if stacks.contains(&"rust") || stacks.contains(&"go") {
         "strict"
     } else {
         "recommended"
     };
+
+    // Proposed gate categories based on stacks (actual gate IDs come from the catalog in WP-04).
+    let mut proposed_gate_categories = vec!["format", "lint", "build"];
+    if stacks.contains(&"rust") {
+        proposed_gate_categories.push("test");
+        proposed_gate_categories.push("clippy");
+    }
+    if stacks.contains(&"node") {
+        proposed_gate_categories.push("eslint");
+        proposed_gate_categories.push("typecheck");
+        proposed_gate_categories.push("test");
+    }
+    if stacks.contains(&"python") {
+        proposed_gate_categories.push("ruff");
+        proposed_gate_categories.push("pytest");
+    }
+
+    // Proposed adapters based on stacks.
+    let mut proposed_adapters = Vec::new();
+    if stacks.contains(&"node") {
+        proposed_adapters.push("biome");
+    }
+    if stacks.contains(&"rust") {
+        proposed_adapters.push("cargo");
+    }
+    if stacks.contains(&"python") {
+        proposed_adapters.push("ruff");
+    }
 
     let mut hook_managers = Vec::new();
     if root.join(".husky").exists() {
@@ -97,7 +125,9 @@ pub fn detect(root: &Path) -> Value {
         "hook_managers": hook_managers,
         "agent_configs": agent_configs,
         "existing_files": existing_files,
-        "proposed_preset": proposed_preset
+        "proposed_preset": proposed_preset,
+        "proposed_gate_categories": proposed_gate_categories,
+        "proposed_adapters": proposed_adapters
     })
 }
 
@@ -114,17 +144,55 @@ fn git_config_hooks_path(root: &Path) -> Option<String> {
         })
 }
 
-pub fn plan_files(root: &Path, _stacks: &[String]) -> Vec<(String, String)> {
+pub fn plan_files(root: &Path, stacks: &[String]) -> Vec<(String, String)> {
     let _ = root;
-    vec![
+    let files = vec![
         (".gitattributes".to_string(), gitattributes_content()),
-        (".gitignore".to_string(), gitignore_content()),
+        (".gitignore".to_string(), gitignore_for_stacks(stacks)),
         (".editorconfig".to_string(), editorconfig_content()),
         ("README.md".to_string(), readme_content()),
         ("LICENSE".to_string(), license_content()),
         ("CHANGELOG.md".to_string(), changelog_content()),
         (".repowill/policy.toml".to_string(), policy_content()),
-    ]
+    ];
+    // Add stack-specific gitignore entries by appending to the base .gitignore.
+    files
+}
+
+pub fn gitignore_for_stacks(stacks: &[String]) -> String {
+    let base = include_str!("../../../assets/templates/gitignore.txt");
+    let mut content = String::from(base);
+    if !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str("*.bak\n");
+    for stack in stacks {
+        let template = match stack.as_str() {
+            "node" => Some(include_str!("../../../assets/templates/gitignore-node.txt")),
+            "rust" => Some(include_str!("../../../assets/templates/gitignore-rust.txt")),
+            "python" => Some(include_str!(
+                "../../../assets/templates/gitignore-python.txt"
+            )),
+            "go" => Some(include_str!("../../../assets/templates/gitignore-go.txt")),
+            "dotnet" => Some(include_str!(
+                "../../../assets/templates/gitignore-dotnet.txt"
+            )),
+            "java" => Some(include_str!("../../../assets/templates/gitignore-java.txt")),
+            _ => None,
+        };
+        if let Some(t) = template {
+            content.push('\n');
+            content.push_str(t);
+            if !t.ends_with('\n') {
+                content.push('\n');
+            }
+        }
+    }
+    content
+}
+
+pub fn checkpoint_path(root: &Path) -> std::path::PathBuf {
+    root.join(".repowill").join("init-checkpoint.json")
 }
 
 pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Result<Value, String> {
@@ -152,11 +220,47 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
             );
         }
     }
-    let files = plan_files(root, &[]);
+    let detection = detect(root);
+    let stacks: Vec<String> = detection
+        .get("stacks")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let files = plan_files(root, &stacks);
+
+    // Load checkpoint if resuming.
+    let checkpoint = checkpoint_path(root);
+    let done: std::collections::HashSet<String> = if checkpoint.exists() {
+        std::fs::read_to_string(&checkpoint)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .and_then(|v| v.get("written").cloned())
+            .and_then(|v| v.as_array().cloned())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        std::collections::HashSet::new()
+    };
+
     let mut written = Vec::new();
     let mut skipped = Vec::new();
     for (rel, content) in &files {
+        if done.contains(rel) {
+            skipped.push(rel.clone());
+            continue;
+        }
         let path = root.join(rel);
+        // Backup existing file before any write (FR-INIT-007).
+        let _ = crate::platform::fs::backup_file(&path);
         if path.exists() {
             skipped.push(rel.clone());
             continue;
@@ -164,9 +268,17 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        // Atomic write (NFR-REL-002).
+        crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(|e| e.to_string())?;
         written.push(rel.clone());
+
+        // Save checkpoint.
+        let cp = serde_json::json!({ "written": written });
+        let _ = crate::platform::fs::atomic_write(&checkpoint, cp.to_string().as_bytes());
     }
+
+    // Clean up checkpoint on successful completion.
+    let _ = std::fs::remove_file(&checkpoint);
     let git = crate::git::Git::new()?;
     let result = git.run(&["config", "user.name", identity_name], Some(root))?;
     if result.code != Some(0) {
@@ -198,7 +310,13 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     );
     let _ = store.ensure();
     let token_id = store
-        .create_token("init", root.to_string_lossy().as_ref(), None, None, 120)
+        .create_token(
+            "init",
+            "refs/heads/main",
+            Some("0000000000000000000000000000000000000000"),
+            None,
+            120,
+        )
         .map_err(|e| format!("failed to create init token: {e}"))?;
 
     let git = crate::git::Git::new()?;
@@ -221,8 +339,12 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     };
     let result = crate::platform::run(&argv, &options);
     if result.code != Some(0) {
+        // Consume token on failure (fail closed).
+        let _ = store.consume_token(&token_id);
         return Err(format!("git commit failed: {}", result.stderr));
     }
+    // Consume token on success.
+    let _ = store.consume_token(&token_id);
     Ok(json!({ "root": root, "written": written, "skipped": skipped, "committed": true }))
 }
 
@@ -302,16 +424,42 @@ pub fn apply_update(
     if !root.join(".git").exists() {
         return Err("not a git repository".to_string());
     }
-    let files = plan_files(root, &[]);
+    let detection = detect(root);
+    let stacks: Vec<String> = detection
+        .get("stacks")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let files = plan_files(root, &stacks);
     let mut updated = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
-        let needs_write = !path.exists();
+        let needs_write = if path.exists() {
+            match std::fs::read_to_string(&path) {
+                Ok(existing) if existing == *content => false,
+                Ok(_) => {
+                    let _ = crate::platform::fs::backup_file(&path);
+                    true
+                }
+                Err(_) => true,
+            }
+        } else {
+            true
+        };
         if needs_write {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            std::fs::write(&path, content).map_err(|e| e.to_string())?;
+            if path.exists() {
+                let _ = crate::platform::fs::backup_file(&path);
+            }
+            crate::platform::fs::atomic_write(&path, content.as_bytes())
+                .map_err(|e| e.to_string())?;
             updated.push(rel.clone());
         }
     }
@@ -340,7 +488,14 @@ pub fn apply_update(
         ));
     }
     let committed = result.code == Some(0);
-    let _ = (identity_name, identity_email);
+    if !identity_name.is_empty() {
+        let git = crate::git::Git::new()?;
+        let _ = git.run(&["config", "user.name", identity_name], Some(root));
+    }
+    if !identity_email.is_empty() {
+        let git = crate::git::Git::new()?;
+        let _ = git.run(&["config", "user.email", identity_email], Some(root));
+    }
     Ok(json!({ "root": root, "updated": updated, "committed": committed }))
 }
 
@@ -350,12 +505,63 @@ pub fn unified_diff(old: &str, new: &str, path: &str) -> String {
     let mut out = String::new();
     out.push_str(&format!("--- a/{path}\n"));
     out.push_str(&format!("+++ b/{path}\n"));
-    // Simple: show all old lines as removed, all new as added (not a real diff, but informative).
-    for line in &old_lines {
-        out.push_str(&format!("-{line}\n"));
+    // Compute LCS.
+    let m = old_lines.len();
+    let n = new_lines.len();
+    let mut dp = vec![vec![0usize; n + 1]; m + 1];
+    for i in (0..m).rev() {
+        for j in (0..n).rev() {
+            if old_lines[i] == new_lines[j] {
+                dp[i][j] = dp[i + 1][j + 1] + 1;
+            } else {
+                dp[i][j] = dp[i + 1][j].max(dp[i][j + 1]);
+            }
+        }
     }
-    for line in &new_lines {
-        out.push_str(&format!("+{line}\n"));
+    // Walk the LCS to produce hunks.
+    let mut i = 0;
+    let mut j = 0;
+    type Hunk = (usize, usize, Vec<(char, String)>);
+    let mut hunks: Vec<Hunk> = Vec::new();
+    let mut current: Vec<(char, String)> = Vec::new();
+    let mut old_start = 1;
+    let mut new_start = 1;
+    while i < m || j < n {
+        if i < m && j < n && old_lines[i] == new_lines[j] {
+            current.push((' ', old_lines[i].to_string()));
+            i += 1;
+            j += 1;
+        } else if j < n && (i == m || dp[i][j + 1] >= dp[i + 1][j]) {
+            if current.is_empty() {
+                new_start = j + 1;
+                old_start = i + 1;
+            }
+            current.push(('+', new_lines[j].to_string()));
+            j += 1;
+        } else if i < m {
+            if current.is_empty() {
+                new_start = j + 1;
+                old_start = i + 1;
+            }
+            current.push(('-', old_lines[i].to_string()));
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    if !current.is_empty() {
+        hunks.push((old_start, new_start, current));
+    }
+    for (os, ns, lines) in &hunks {
+        let old_count = lines.iter().filter(|(c, _)| *c != '+').count();
+        let new_count = lines.iter().filter(|(c, _)| *c != '-').count();
+        out.push_str(&format!(
+            "@@ -{},{} +{},{} @@\n",
+            os, old_count, ns, new_count
+        ));
+        for (c, line) in lines {
+            out.push_str(&format!("{c}{line}\n"));
+        }
     }
     out
 }

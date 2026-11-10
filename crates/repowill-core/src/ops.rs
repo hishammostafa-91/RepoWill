@@ -620,7 +620,11 @@ fn project_init(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let email = params.get("email").and_then(Value::as_str).unwrap_or("");
-    if name.is_empty() || email.is_empty() {
+    let resume = params
+        .get("resume")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !resume && (name.is_empty() || email.is_empty()) {
         return Err(RwError {
             code: "RW-E1004".to_string(),
             category: "usage".to_string(),
@@ -676,11 +680,12 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     let mut written = 0usize;
     for (rel, content) in &files {
         let path = root.join(rel);
+        let _ = crate::platform::fs::backup_file(&path);
         if !path.exists() {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(policy_error)?;
             }
-            std::fs::write(&path, content).map_err(policy_error)?;
+            crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(policy_error)?;
             written += 1;
         }
     }
