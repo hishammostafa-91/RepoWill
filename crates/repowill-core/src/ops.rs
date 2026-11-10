@@ -680,11 +680,11 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
     let mut written = 0usize;
     for (rel, content) in &files {
         let path = root.join(rel);
+        let _ = crate::platform::fs::backup_file(&path);
         if !path.exists() {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(policy_error)?;
             }
-            let _ = crate::platform::fs::backup_file(&path);
             crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(policy_error)?;
             written += 1;
         }

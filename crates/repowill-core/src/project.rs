@@ -244,6 +244,8 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
             continue;
         }
         let path = root.join(rel);
+        // Backup existing file before any write (FR-INIT-007).
+        let _ = crate::platform::fs::backup_file(&path);
         if path.exists() {
             skipped.push(rel.clone());
             continue;
@@ -251,8 +253,6 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        // Backup existing file before overwriting (FR-INIT-007).
-        let _ = crate::platform::fs::backup_file(&path);
         // Atomic write (NFR-REL-002).
         crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(|e| e.to_string())?;
         written.push(rel.clone());
@@ -318,8 +318,12 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     };
     let result = crate::platform::run(&argv, &options);
     if result.code != Some(0) {
+        // Consume token on failure (fail closed).
+        let _ = store.consume_token(&token_id);
         return Err(format!("git commit failed: {}", result.stderr));
     }
+    // Consume token on success.
+    let _ = store.consume_token(&token_id);
     Ok(json!({ "root": root, "written": written, "skipped": skipped, "committed": true }))
 }
 
