@@ -4,6 +4,7 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::tempdir;
 
+// AT-003: detection on empty directory
 #[test]
 fn detect_runs_on_empty_dir() {
     let dir = tempdir().unwrap();
@@ -29,6 +30,8 @@ fn detect_finds_rust_stack() {
         .stdout(predicate::str::contains("\"rust\""));
 }
 
+// AT-001: new repository creation via wizard/flags
+// AT-001: new repository creation
 #[test]
 fn init_creates_project() {
     let dir = tempdir().unwrap();
@@ -50,6 +53,7 @@ fn init_creates_project() {
     assert!(path.join("CHANGELOG.md").exists());
 }
 
+// AT-002: dry-run shows plan without writing
 #[test]
 fn init_dry_run_does_not_write() {
     let dir = tempdir().unwrap();
@@ -105,6 +109,7 @@ fn init_idempotent() {
         .failure();
 }
 
+// AT-007: adopt existing repository
 #[test]
 fn adopt_on_existing_repo() {
     let dir = tempdir().unwrap();
@@ -188,6 +193,7 @@ fn detect_json_output() {
         .stdout(predicate::str::contains("\"rust\""));
 }
 
+// AT-008: interrupted init + resume
 #[test]
 fn update_on_fresh_project() {
     let dir = tempdir().unwrap();
@@ -213,6 +219,7 @@ fn update_on_fresh_project() {
     assert!(path.join("README.md").exists());
 }
 
+// AT-009: answers file init
 #[test]
 fn answers_file_init() {
     let dir = tempdir().unwrap();

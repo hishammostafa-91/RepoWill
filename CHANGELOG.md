@@ -13,6 +13,9 @@ All notable changes to RepoWill are documented here.
   `project.adopt`, `project.update`, projects registry; interactive CLI wizard and answers file;
   scaffold templates (gitattributes, gitignore, editorconfig, README, LICENSE, CHANGELOG, policy);
   GUI setup wizard and projects screen.
+- WP-02.3.1 follow-up: stack-aware gitignores, real unified diff with @@ hunks, atomic writes with
+  backups, checkpoint-based resume, token-guarded initial commit, JSON envelope for init/adopt/projects,
+  comprehensive CLI integration tests, user documentation.
 
 ### Changed
 - `repowill-model::Policy` now derives `PartialEq` to support engine tests.
