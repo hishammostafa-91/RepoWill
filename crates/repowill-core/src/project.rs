@@ -373,7 +373,7 @@ pub fn license_content() -> String {
 }
 
 pub fn policy_content() -> String {
-    "schema_version = 1\nmin_repowill_version = \"1.0.0\"\n".to_string()
+    include_str!("../../../assets/templates/policy.toml").to_string()
 }
 
 pub fn project_list_path() -> PathBuf {
