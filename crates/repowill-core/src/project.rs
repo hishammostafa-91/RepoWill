@@ -176,6 +176,10 @@ pub fn gitignore_for_stacks(stacks: &[String]) -> String {
     content
 }
 
+pub fn checkpoint_path(root: &Path) -> std::path::PathBuf {
+    root.join(".repowill").join("init-checkpoint.json")
+}
+
 pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Result<Value, String> {
     if identity_name.is_empty() || identity_email.is_empty() {
         return Err("identity name and email are required".to_string());
@@ -213,9 +217,32 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         })
         .unwrap_or_default();
     let files = plan_files(root, &stacks);
+
+    // Load checkpoint if resuming.
+    let checkpoint = checkpoint_path(root);
+    let done: std::collections::HashSet<String> = if checkpoint.exists() {
+        std::fs::read_to_string(&checkpoint)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .and_then(|v| v.get("written").cloned())
+            .and_then(|v| v.as_array().cloned())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        std::collections::HashSet::new()
+    };
+
     let mut written = Vec::new();
     let mut skipped = Vec::new();
     for (rel, content) in &files {
+        if done.contains(rel) {
+            skipped.push(rel.clone());
+            continue;
+        }
         let path = root.join(rel);
         if path.exists() {
             skipped.push(rel.clone());
@@ -229,7 +256,14 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         // Atomic write (NFR-REL-002).
         crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(|e| e.to_string())?;
         written.push(rel.clone());
+
+        // Save checkpoint.
+        let cp = serde_json::json!({ "written": written });
+        let _ = crate::platform::fs::atomic_write(&checkpoint, cp.to_string().as_bytes());
     }
+
+    // Clean up checkpoint on successful completion.
+    let _ = std::fs::remove_file(&checkpoint);
     let git = crate::git::Git::new()?;
     let result = git.run(&["config", "user.name", identity_name], Some(root))?;
     if result.code != Some(0) {

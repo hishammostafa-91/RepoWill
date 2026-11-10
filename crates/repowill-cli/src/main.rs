@@ -508,10 +508,20 @@ fn run(cli: Cli) -> i32 {
         };
         match ops::execute(op, params, &ctx) {
             Ok(data) => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&data).unwrap_or_default()
-                );
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"ok":true,"op":op.as_str(),"data":data})
+                        )
+                        .unwrap_or_default()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&data).unwrap_or_default()
+                    );
+                }
                 return 0;
             }
             Err(error) => {
