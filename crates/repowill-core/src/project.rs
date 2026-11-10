@@ -160,7 +160,7 @@ pub fn plan_files(root: &Path, stacks: &[String]) -> Vec<(String, String)> {
 }
 
 pub fn gitignore_for_stacks(stacks: &[String]) -> String {
-    let mut content = String::from("# RepoWill\n.repowill/local.toml\n.repowill/ops.lock\n");
+    let mut content = String::from("# RepoWill\n.repowill/local.toml\n.repowill/ops.lock\n*.bak\n");
     for stack in stacks {
         match stack.as_str() {
             "node" => content
