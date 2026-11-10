@@ -295,7 +295,13 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     );
     let _ = store.ensure();
     let token_id = store
-        .create_token("init", root.to_string_lossy().as_ref(), None, None, 120)
+        .create_token(
+            "init",
+            "refs/heads/main",
+            Some("0000000000000000000000000000000000000000"),
+            None,
+            120,
+        )
         .map_err(|e| format!("failed to create init token: {e}"))?;
 
     let git = crate::git::Git::new()?;
@@ -418,12 +424,25 @@ pub fn apply_update(
     let mut updated = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
-        let needs_write = !path.exists();
+        let needs_write = if path.exists() {
+            match std::fs::read_to_string(&path) {
+                Ok(existing) if existing == *content => false,
+                Ok(_) => {
+                    let _ = crate::platform::fs::backup_file(&path);
+                    true
+                }
+                Err(_) => true,
+            }
+        } else {
+            true
+        };
         if needs_write {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            let _ = crate::platform::fs::backup_file(&path);
+            if path.exists() {
+                let _ = crate::platform::fs::backup_file(&path);
+            }
             crate::platform::fs::atomic_write(&path, content.as_bytes())
                 .map_err(|e| e.to_string())?;
             updated.push(rel.clone());
@@ -454,7 +473,14 @@ pub fn apply_update(
         ));
     }
     let committed = result.code == Some(0);
-    let _ = (identity_name, identity_email);
+    if !identity_name.is_empty() {
+        let git = crate::git::Git::new()?;
+        let _ = git.run(&["config", "user.name", identity_name], Some(root));
+    }
+    if !identity_email.is_empty() {
+        let git = crate::git::Git::new()?;
+        let _ = git.run(&["config", "user.email", identity_email], Some(root));
+    }
     Ok(json!({ "root": root, "updated": updated, "committed": committed }))
 }
 
