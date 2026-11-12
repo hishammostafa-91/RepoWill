@@ -295,8 +295,7 @@ pub fn apply_init(
         let _ = crate::platform::fs::atomic_write(&checkpoint, cp.to_string().as_bytes());
     }
 
-    // Clean up checkpoint on successful completion.
-    let _ = std::fs::remove_file(&checkpoint);
+    // Clean up checkpoint only after staging and commit succeed.
     let git = crate::git::Git::new()?;
     let result = git.run(&["config", "user.name", identity_name], Some(root))?;
     if result.code != Some(0) {
@@ -307,14 +306,20 @@ pub fn apply_init(
         return Err(format!("git config user.email failed: {}", result.stderr));
     }
     let _ = crate::platform::enable_long_paths(root);
-    // Stage only the scaffold files we wrote, never pre-existing content.
-    for rel in &written {
+    // Stage scaffold files we wrote plus any previously written (resume) files.
+    let mut to_stage: Vec<String> = written.clone();
+    for rel in &done {
+        if !to_stage.contains(rel) {
+            to_stage.push(rel.clone());
+        }
+    }
+    for rel in &to_stage {
         let result = git.run(&["add", "--", rel], Some(root))?;
         if result.code != Some(0) {
             return Err(format!("git add failed: {}", result.stderr));
         }
     }
-    if written.is_empty() {
+    if written.is_empty() && done.is_empty() {
         return Ok(
             json!({ "root": root, "written": written, "skipped": skipped, "committed": false }),
         );
@@ -346,7 +351,7 @@ pub fn apply_init(
     argv.push("-m".to_string());
     argv.push("chore: initial commit".to_string());
     argv.push("--".to_string());
-    for rel in &written {
+    for rel in &to_stage {
         argv.push(rel.clone());
     }
     let options = crate::platform::RunOptions {
@@ -357,15 +362,23 @@ pub fn apply_init(
     let result = crate::platform::run(&argv, &options);
     if result.code != Some(0) {
         // Consume token on failure (fail closed).
-        store
+        let consumed = store
             .consume_token(&token_id)
             .map_err(|e| format!("failed to consume init token: {e}"))?;
+        if !consumed {
+            return Err("init token was invalid or expired".to_string());
+        }
         return Err(format!("git commit failed: {}", result.stderr));
     }
     // Consume token on success.
-    store
+    let consumed = store
         .consume_token(&token_id)
         .map_err(|e| format!("failed to consume init token: {e}"))?;
+    if !consumed {
+        return Err("init token was invalid or expired".to_string());
+    }
+    // Clean up checkpoint only after successful commit.
+    let _ = std::fs::remove_file(&checkpoint);
     Ok(json!({ "root": root, "written": written, "skipped": skipped, "committed": true }))
 }
 

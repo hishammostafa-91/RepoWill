@@ -350,7 +350,14 @@ fn run(cli: Cli) -> i32 {
                 return 0;
             }
             Err(error) => {
-                eprintln!("{}: {}", error.code, error.message);
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({"ok":false,"op":"project.detect","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
                 return error.exit_code();
             }
         }
@@ -435,18 +442,32 @@ fn run(cli: Cli) -> i32 {
         let mode = mode_from_answers.3;
         let project_license = mode_from_answers.4;
         if dry_run {
-            let params = json!({ "path": path });
+            let params = json!({ "path": path, "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string()) });
             let ctx = OpContext::new(repo_root.clone());
             match ops::execute(repowill_core::Operation::ProjectPlan, params, &ctx) {
                 Ok(data) => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&data).unwrap_or_default()
-                    );
+                    if cli.json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&json!({"ok":true,"op":"project.plan","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})).unwrap_or_default()
+                        );
+                    } else {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&data).unwrap_or_default()
+                        );
+                    }
                     return 0;
                 }
                 Err(error) => {
-                    eprintln!("{}: {}", error.code, error.message);
+                    if cli.json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&json!({"ok":false,"op":"project.plan","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                        );
+                    } else {
+                        eprintln!("{}: {}", error.code, error.message);
+                    }
                     return error.exit_code();
                 }
             }
@@ -528,7 +549,14 @@ fn run(cli: Cli) -> i32 {
                 return 0;
             }
             Err(error) => {
-                eprintln!("{}: {}", error.code, error.message);
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({"ok":false,"op":op.as_str(),"repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
                 return error.exit_code();
             }
         }
@@ -563,7 +591,14 @@ fn run(cli: Cli) -> i32 {
                     return 0;
                 }
                 Err(error) => {
-                    eprintln!("{}: {}", error.code, error.message);
+                    if cli.json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&json!({"ok":false,"op":"project.plan","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                        );
+                    } else {
+                        eprintln!("{}: {}", error.code, error.message);
+                    }
                     return error.exit_code();
                 }
             }
@@ -589,7 +624,14 @@ fn run(cli: Cli) -> i32 {
                 return 0;
             }
             Err(error) => {
-                eprintln!("{}: {}", error.code, error.message);
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({"ok":false,"op":"project.adopt","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
                 return error.exit_code();
             }
         }
@@ -621,7 +663,14 @@ fn run(cli: Cli) -> i32 {
                 return 0;
             }
             Err(error) => {
-                eprintln!("{}: {}", error.code, error.message);
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({"ok":false,"op":"project.update","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
                 return error.exit_code();
             }
         }
@@ -659,7 +708,14 @@ fn run(cli: Cli) -> i32 {
                 return 0;
             }
             Err(error) => {
-                eprintln!("{}: {}", error.code, error.message);
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({"ok":false,"op":op.as_str(),"repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":null,"warnings":[],"error":error})).unwrap_or_default()
+                    );
+                } else {
+                    eprintln!("{}: {}", error.code, error.message);
+                }
                 return error.exit_code();
             }
         }
