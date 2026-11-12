@@ -259,6 +259,58 @@ fn init_dry_run_shows_diff() {
     assert!(stdout.contains("\"diff\""));
 }
 
+// AT-008: interrupted init + resume
+#[test]
+fn init_resume_after_interrupt() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("proj");
+    // Create a partial checkpoint to simulate interrupted init.
+    fs::create_dir_all(&path).unwrap();
+    fs::create_dir_all(path.join(".repowill")).unwrap();
+    fs::write(
+        path.join(".repowill/init-checkpoint.json"),
+        r#"{"written":[".gitattributes",".gitignore"]}"#,
+    )
+    .unwrap();
+    // git init
+    std::process::Command::new("git")
+        .arg("init")
+        .arg("-b")
+        .arg("main")
+        .arg(&path)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(&path)
+        .args(["config", "user.name", "Test"])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(&path)
+        .args(["config", "user.email", "test@example.com"])
+        .output()
+        .unwrap();
+    // Write the checkpointed files
+    fs::write(path.join(".gitattributes"), "* text=auto eol=lf\n").unwrap();
+    fs::write(path.join(".gitignore"), "# RepoWill\n").unwrap();
+
+    Command::cargo_bin("repowill")
+        .unwrap()
+        .arg("init")
+        .arg(&path)
+        .arg("--name")
+        .arg("Test")
+        .arg("--email")
+        .arg("test@example.com")
+        .arg("--resume")
+        .assert()
+        .success();
+    assert!(path.join("README.md").exists());
+    assert!(path.join(".editorconfig").exists());
+}
+
 // AT-009: answers file init
 #[test]
 fn answers_file_init() {
