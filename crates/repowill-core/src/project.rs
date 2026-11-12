@@ -290,8 +290,14 @@ pub fn apply_init(
         crate::platform::fs::atomic_write(&path, content.as_bytes()).map_err(|e| e.to_string())?;
         written.push(rel.clone());
 
-        // Save checkpoint.
-        let cp = serde_json::json!({ "written": written });
+        // Save checkpoint with done ∪ written for multi-interrupt resume.
+        let mut all_done: Vec<String> = done.iter().cloned().collect();
+        for w in &written {
+            if !all_done.contains(w) {
+                all_done.push(w.clone());
+            }
+        }
+        let cp = serde_json::json!({ "written": all_done });
         let _ = crate::platform::fs::atomic_write(&checkpoint, cp.to_string().as_bytes());
     }
 
@@ -426,9 +432,24 @@ pub fn header_0bsd_html() -> String {
     include_str!("../../../assets/templates/header-0bsd-html.txt").to_string()
 }
 
+/// Return the appropriate 0BSD SPDX header for a given file extension.
+pub fn header_for_extension(ext: &str) -> Option<String> {
+    match ext.to_lowercase().as_str() {
+        "rs" | "go" | "java" | "kt" | "cs" | "js" | "ts" | "tsx" | "jsx" => Some(header_0bsd()),
+        "c" | "cpp" | "h" | "hpp" | "cc" => Some(header_0bsd_c()),
+        "py" | "sh" | "bash" | "toml" | "yaml" | "yml" => Some(header_0bsd_hash()),
+        "html" | "xml" | "svg" => Some(header_0bsd_html()),
+        _ => None,
+    }
+}
+
 pub fn license_content_for(license: &str) -> String {
     match license.to_lowercase().as_str() {
         "mit" => include_str!("../../../assets/templates/license-mit.txt").to_string(),
+        "apache-2.0" | "apache" => {
+            include_str!("../../../assets/templates/license-apache.txt").to_string()
+        }
+        "0bsd" => include_str!("../../../assets/templates/license-0bsd.txt").to_string(),
         _ => include_str!("../../../assets/templates/license-mit.txt").to_string(),
     }
 }
@@ -458,7 +479,7 @@ pub fn project_add(root: &Path) -> Result<Value, String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let mut list = project_list().unwrap_or(json!({ "projects": [] }));
+    let mut list = project_list()?;
     let entry = json!({ "path": root.display().to_string() });
     let projects = list.get_mut("projects").and_then(|v| v.as_array_mut());
     if let Some(arr) = projects {
@@ -664,7 +685,7 @@ pub fn project_forget(root: &Path) -> Result<Value, String> {
     if !path.exists() {
         return Ok(json!({ "projects": [] }));
     }
-    let mut list = project_list().unwrap_or(json!({ "projects": [] }));
+    let mut list = project_list()?;
     if let Some(arr) = list.get_mut("projects").and_then(|v| v.as_array_mut()) {
         arr.retain(|p| {
             p.get("path").and_then(Value::as_str) != Some(root.to_string_lossy().as_ref())
@@ -740,5 +761,35 @@ mod tests {
         let _result = apply_update(dir.path(), "Test", "test@example.com", "MIT").unwrap();
         // File is restored (content matches scaffold).
         assert!(dir.path().join("README.md").exists());
+    }
+
+    #[test]
+    fn unified_diff_golden() {
+        let old = "line1\nline2\nline3\n";
+        let new = "line1\nchanged\nline3\nadded\n";
+        let diff = unified_diff(old, new, "test.txt");
+        assert!(diff.contains("--- a/test.txt"));
+        assert!(diff.contains("+++ b/test.txt"));
+        assert!(diff.contains("@@"));
+        assert!(diff.contains("-line2"));
+        assert!(diff.contains("+changed"));
+        assert!(diff.contains("+added"));
+        assert!(diff.contains(" line1"));
+        assert!(diff.contains(" line3"));
+    }
+
+    #[test]
+    fn unified_diff_no_changes() {
+        let text = "same\n";
+        let diff = unified_diff(text, text, "f.txt");
+        assert!(diff.contains("--- a/f.txt"));
+        assert!(!diff.contains("@@"));
+    }
+
+    #[test]
+    fn header_for_extension_returns_some() {
+        assert!(header_for_extension("rs").is_some());
+        assert!(header_for_extension("py").is_some());
+        assert!(header_for_extension("unknown").is_none());
     }
 }

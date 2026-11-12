@@ -97,6 +97,8 @@ enum Commands {
         email: Option<String>,
         #[arg(long)]
         dry_run: bool,
+        #[arg(long)]
+        license: Option<String>,
     },
     /// Manage the projects registry.
     #[command(after_help = "Examples:\n  repowill projects list")]
@@ -113,6 +115,8 @@ enum Commands {
         name: Option<String>,
         #[arg(long)]
         email: Option<String>,
+        #[arg(long)]
+        license: Option<String>,
     },
     /// Run a raw operation from JSON.
     #[command(after_help = "Examples:\n  repowill op '{\"op\":\"app.version\"}'")]
@@ -567,10 +571,11 @@ fn run(cli: Cli) -> i32 {
         name,
         email,
         dry_run,
+        license,
     } = command
     {
         if dry_run {
-            let params = json!({ "path": path });
+            let params = json!({ "path": path, "project_license": license.clone().unwrap_or_else(|| "MIT".to_string()) });
             let ctx = OpContext::new(repo_root.clone());
             match ops::execute(repowill_core::Operation::ProjectPlan, params, &ctx) {
                 Ok(data) => {
@@ -603,7 +608,7 @@ fn run(cli: Cli) -> i32 {
                 }
             }
         }
-        let params = json!({ "path": path, "name": name.unwrap_or_default(), "email": email.unwrap_or_default() });
+        let params = json!({ "path": path, "name": name.unwrap_or_default(), "email": email.unwrap_or_default(), "project_license": license.clone().unwrap_or_else(|| "MIT".to_string()) });
         let ctx = OpContext::new(repo_root.clone());
         match ops::execute(repowill_core::Operation::ProjectAdopt, params, &ctx) {
             Ok(data) => {
@@ -637,11 +642,18 @@ fn run(cli: Cli) -> i32 {
         }
     }
 
-    if let Commands::Update { path, name, email } = command {
+    if let Commands::Update {
+        path,
+        name,
+        email,
+        license,
+    } = command
+    {
         let params = json!({
             "path": path,
             "name": name.unwrap_or_default(),
-            "email": email.unwrap_or_default()
+            "email": email.unwrap_or_default(),
+            "project_license": license.clone().unwrap_or_else(|| "MIT".to_string())
         });
         let ctx = OpContext::new(repo_root.clone());
         match ops::execute(repowill_core::Operation::ProjectUpdate, params, &ctx) {
