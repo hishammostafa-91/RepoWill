@@ -1,3 +1,11 @@
+## [Unreleased]
+
+### Added
+- Repository init/adopt/update with scaffold, atomic writes, backups, checkpoint resume, token-guarded commit.
+- Stack-aware .gitignore templates (Node, Rust, Python, Go, .NET, Java).
+- 0BSD SPDX header templates.
+- JSON envelope for all CLI commands.
+
 # Changelog
 
 All notable changes to RepoWill are documented here.

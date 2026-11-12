@@ -13,8 +13,9 @@ repowill init /path/to/repo --name "My Project" --email "me@example.com"
 - `--name <NAME>` — project owner name (required in non-interactive mode)
 - `--email <EMAIL>` — project owner email (required in non-interactive mode)
 - `--dry-run` — show the file plan without writing anything
-- `--answers <FILE>` — read all options from a TOML answers file (`04` §10)
-- `--non-interactive` — fail instead of prompting when identity is missing
+- `--answers <FILE>` - read all options from a TOML answers file
+- `--resume` - resume an interrupted init (skips already-written files)
+- `--non-interactive` - fail instead of prompting when identity is missing
 
 ### Interactive wizard
 
