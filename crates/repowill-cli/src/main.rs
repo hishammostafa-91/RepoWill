@@ -337,7 +337,7 @@ fn run(cli: Cli) -> i32 {
                     println!(
                         "{}",
                         serde_json::to_string_pretty(
-                            &json!({"ok":true,"op":"project.detect","data":data})
+                            &json!({"ok":true,"op":"project.detect","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                         )
                         .unwrap_or_default()
                     );
@@ -512,7 +512,7 @@ fn run(cli: Cli) -> i32 {
                     println!(
                         "{}",
                         serde_json::to_string_pretty(
-                            &json!({"ok":true,"op":op.as_str(),"data":data})
+                            &json!({"ok":true,"op":op.as_str(),"repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                         )
                         .unwrap_or_default()
                     );
@@ -547,7 +547,7 @@ fn run(cli: Cli) -> i32 {
                         println!(
                             "{}",
                             serde_json::to_string_pretty(
-                                &json!({"ok":true,"op":"project.init","data":data})
+                                &json!({"ok":true,"op":"project.init","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                             )
                             .unwrap_or_default()
                         );
@@ -573,7 +573,7 @@ fn run(cli: Cli) -> i32 {
                     println!(
                         "{}",
                         serde_json::to_string_pretty(
-                            &json!({"ok":true,"op":"project.adopt","data":data})
+                            &json!({"ok":true,"op":"project.adopt","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                         )
                         .unwrap_or_default()
                     );
@@ -643,7 +643,7 @@ fn run(cli: Cli) -> i32 {
                     println!(
                         "{}",
                         serde_json::to_string_pretty(
-                            &json!({"ok":true,"op":op.as_str(),"data":data})
+                            &json!({"ok":true,"op":op.as_str(),"repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                         )
                         .unwrap_or_default()
                     );
