@@ -153,17 +153,58 @@ pub fn plan_files_with(
     stacks: &[String],
     project_license: &str,
 ) -> Vec<(String, String)> {
+    plan_files_filtered(root, stacks, project_license, None)
+}
+
+pub fn plan_files_filtered(
+    root: &Path,
+    stacks: &[String],
+    project_license: &str,
+    files_filter: Option<&serde_json::Value>,
+) -> Vec<(String, String)> {
     let _ = root;
-    let files = vec![
-        (".gitattributes".to_string(), gitattributes_content()),
-        (".gitignore".to_string(), gitignore_for_stacks(stacks)),
-        (".editorconfig".to_string(), editorconfig_content()),
-        ("README.md".to_string(), readme_content()),
-        ("LICENSE".to_string(), license_content_for(project_license)),
-        ("CHANGELOG.md".to_string(), changelog_content()),
-        (".repowill/policy.toml".to_string(), policy_content()),
+    let all = vec![
+        (
+            ".gitattributes".to_string(),
+            gitattributes_content(),
+            "gitattributes",
+        ),
+        (
+            ".gitignore".to_string(),
+            gitignore_for_stacks(stacks),
+            "gitignore",
+        ),
+        (
+            ".editorconfig".to_string(),
+            editorconfig_content(),
+            "editorconfig",
+        ),
+        ("README.md".to_string(), readme_content(), "readme"),
+        (
+            "LICENSE".to_string(),
+            license_content_for(project_license),
+            "license",
+        ),
+        ("CHANGELOG.md".to_string(), changelog_content(), "changelog"),
+        (
+            ".repowill/policy.toml".to_string(),
+            policy_content(),
+            "policy",
+        ),
     ];
-    files
+    all.into_iter()
+        .filter(|(_, _, key)| {
+            if let Some(filter) = files_filter {
+                filter
+                    .get(*key)
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true)
+            } else {
+                true
+            }
+        })
+        .map(|(path, content, _)| (path, content))
+        .collect()
 }
 
 pub fn gitignore_for_stacks(stacks: &[String]) -> String {
@@ -208,6 +249,7 @@ pub fn apply_init(
     identity_email: &str,
     resume: bool,
     project_license: &str,
+    files_filter: Option<&serde_json::Value>,
 ) -> Result<Value, String> {
     if identity_name.is_empty() || identity_email.is_empty() {
         return Err("identity name and email are required".to_string());
@@ -249,7 +291,7 @@ pub fn apply_init(
     } else {
         project_license
     };
-    let files = plan_files_with(root, &stacks, pl);
+    let files = plan_files_filtered(root, &stacks, pl, files_filter);
 
     // Load checkpoint only when resuming.
     let checkpoint = checkpoint_path(root);
@@ -499,6 +541,7 @@ pub fn apply_update(
     identity_name: &str,
     identity_email: &str,
     project_license: &str,
+    files_filter: Option<&serde_json::Value>,
 ) -> Result<Value, String> {
     if !root.join(".git").exists() {
         return Err("not a git repository".to_string());
@@ -519,7 +562,7 @@ pub fn apply_update(
     } else {
         project_license
     };
-    let files = plan_files_with(root, &stacks, pl);
+    let files = plan_files_filtered(root, &stacks, pl, files_filter);
     let mut updated = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
@@ -729,14 +772,15 @@ mod tests {
     #[test]
     fn apply_init_requires_identity() {
         let dir = tempdir().unwrap();
-        let result = apply_init(dir.path(), "", "", false, "MIT");
+        let result = apply_init(dir.path(), "", "", false, "MIT", None);
         assert!(result.is_err());
     }
 
     #[test]
     fn apply_init_creates_repo_and_files() {
         let dir = tempdir().unwrap();
-        let result = apply_init(dir.path(), "Test", "test@example.com", false, "MIT").unwrap();
+        let result =
+            apply_init(dir.path(), "Test", "test@example.com", false, "MIT", None).unwrap();
         assert!(dir.path().join(".git").exists());
         assert!(dir.path().join("README.md").exists());
         assert!(dir.path().join(".gitattributes").exists());
@@ -746,19 +790,19 @@ mod tests {
     #[test]
     fn apply_init_idempotent() {
         let dir = tempdir().unwrap();
-        apply_init(dir.path(), "Test", "test@example.com", false, "MIT").unwrap();
+        apply_init(dir.path(), "Test", "test@example.com", false, "MIT", None).unwrap();
         // Re-running init on an existing repo should not commit on main.
-        let result = apply_init(dir.path(), "Test", "test@example.com", false, "MIT");
+        let result = apply_init(dir.path(), "Test", "test@example.com", false, "MIT", None);
         assert!(result.is_err());
     }
 
     #[test]
     fn apply_update_adds_missing_files() {
         let dir = tempdir().unwrap();
-        apply_init(dir.path(), "Test", "test@example.com", false, "MIT").unwrap();
+        apply_init(dir.path(), "Test", "test@example.com", false, "MIT", None).unwrap();
         // remove a file
         std::fs::remove_file(dir.path().join("README.md")).unwrap();
-        let _result = apply_update(dir.path(), "Test", "test@example.com", "MIT").unwrap();
+        let _result = apply_update(dir.path(), "Test", "test@example.com", "MIT", None).unwrap();
         // File is restored (content matches scaffold).
         assert!(dir.path().join("README.md").exists());
     }

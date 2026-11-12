@@ -593,7 +593,8 @@ fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .get("project_license")
         .and_then(Value::as_str)
         .unwrap_or("MIT");
-    let files = project::plan_files_with(&root, &stacks, project_license);
+    let files_filter = params.get("files");
+    let files = project::plan_files_filtered(&root, &stacks, project_license, files_filter);
     let file_list: Vec<Value> = files
         .iter()
         .map(|(rel, content)| {
@@ -641,7 +642,9 @@ fn project_init(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .get("project_license")
         .and_then(Value::as_str)
         .unwrap_or("MIT");
-    project::apply_init(&root, name, email, resume, project_license).map_err(policy_error)
+    let files_filter = params.get("files");
+    project::apply_init(&root, name, email, resume, project_license, files_filter)
+        .map_err(policy_error)
 }
 
 fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
@@ -688,7 +691,8 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .get("project_license")
         .and_then(Value::as_str)
         .unwrap_or("MIT");
-    let files = project::plan_files_with(&root, &stacks, project_license);
+    let files_filter = params.get("files");
+    let files = project::plan_files_filtered(&root, &stacks, project_license, files_filter);
     let mut written = 0usize;
     for (rel, content) in &files {
         let path = root.join(rel);
@@ -737,7 +741,8 @@ fn project_update(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .get("project_license")
         .and_then(Value::as_str)
         .unwrap_or("MIT");
-    project::apply_update(&root, name, email, project_license).map_err(policy_error)
+    let files_filter = params.get("files");
+    project::apply_update(&root, name, email, project_license, files_filter).map_err(policy_error)
 }
 
 fn project_list(ctx: &OpContext) -> Result<Value, RwError> {

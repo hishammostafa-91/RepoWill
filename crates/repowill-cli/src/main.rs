@@ -421,7 +421,7 @@ fn run(cli: Cli) -> i32 {
             let files = parsed.get("files").cloned();
             let stacks = parsed.get("stacks").cloned();
             let agents = parsed.get("agents").cloned();
-            let _ = (description, preset, files, stacks, agents);
+            let _ = (description, preset, stacks, agents);
             // Keep project_license for params.
             let e = parsed
                 .get("identity")
@@ -434,9 +434,9 @@ fn run(cli: Cli) -> i32 {
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
                 .unwrap_or_else(|| "new".to_string());
-            (p, n, e, m, project_license)
+            (p, n, e, m, project_license, files)
         } else {
-            (path, name, email, "new".to_string(), None)
+            (path, name, email, "new".to_string(), None, None)
         };
         let (path, name, email) = (
             mode_from_answers.0,
@@ -445,6 +445,7 @@ fn run(cli: Cli) -> i32 {
         );
         let mode = mode_from_answers.3;
         let project_license = mode_from_answers.4;
+        let files_filter = mode_from_answers.5;
         if dry_run {
             let params = json!({ "path": path, "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string()) });
             let ctx = OpContext::new(repo_root.clone());
@@ -526,7 +527,8 @@ fn run(cli: Cli) -> i32 {
             "name": name.unwrap_or_default(),
             "email": email.unwrap_or_default(),
             "resume": resume,
-            "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string())
+            "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string()),
+            "files": files_filter
         });
         let ctx = OpContext::new(repo_root.clone());
         let op = if mode == "adopt" {
