@@ -145,17 +145,24 @@ fn git_config_hooks_path(root: &Path) -> Option<String> {
 }
 
 pub fn plan_files(root: &Path, stacks: &[String]) -> Vec<(String, String)> {
+    plan_files_with(root, stacks, "MIT")
+}
+
+pub fn plan_files_with(
+    root: &Path,
+    stacks: &[String],
+    project_license: &str,
+) -> Vec<(String, String)> {
     let _ = root;
     let files = vec![
         (".gitattributes".to_string(), gitattributes_content()),
         (".gitignore".to_string(), gitignore_for_stacks(stacks)),
         (".editorconfig".to_string(), editorconfig_content()),
         ("README.md".to_string(), readme_content()),
-        ("LICENSE".to_string(), license_content()),
+        ("LICENSE".to_string(), license_content_for(project_license)),
         ("CHANGELOG.md".to_string(), changelog_content()),
         (".repowill/policy.toml".to_string(), policy_content()),
     ];
-    // Add stack-specific gitignore entries by appending to the base .gitignore.
     files
 }
 
@@ -195,7 +202,13 @@ pub fn checkpoint_path(root: &Path) -> std::path::PathBuf {
     root.join(".repowill").join("init-checkpoint.json")
 }
 
-pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Result<Value, String> {
+pub fn apply_init(
+    root: &Path,
+    identity_name: &str,
+    identity_email: &str,
+    resume: bool,
+    project_license: &str,
+) -> Result<Value, String> {
     if identity_name.is_empty() || identity_email.is_empty() {
         return Err("identity name and email are required".to_string());
     }
@@ -231,11 +244,16 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
                 .collect()
         })
         .unwrap_or_default();
-    let files = plan_files(root, &stacks);
+    let pl = if project_license.is_empty() {
+        "MIT"
+    } else {
+        project_license
+    };
+    let files = plan_files_with(root, &stacks, pl);
 
-    // Load checkpoint if resuming.
+    // Load checkpoint only when resuming.
     let checkpoint = checkpoint_path(root);
-    let done: std::collections::HashSet<String> = if checkpoint.exists() {
+    let done: std::collections::HashSet<String> = if resume && checkpoint.exists() {
         std::fs::read_to_string(&checkpoint)
             .ok()
             .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
@@ -261,7 +279,7 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
         let path = root.join(rel);
         // Backup existing file before any write (FR-INIT-007).
         let _ = crate::platform::fs::backup_file(&path);
-        if path.exists() {
+        if path.exists() && !resume {
             skipped.push(rel.clone());
             continue;
         }
@@ -288,10 +306,7 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     if result.code != Some(0) {
         return Err(format!("git config user.email failed: {}", result.stderr));
     }
-    #[cfg(windows)]
-    {
-        let _ = git.run(&["config", "core.longpaths", "true"], Some(root));
-    }
+    let _ = crate::platform::enable_long_paths(root);
     // Stage only the scaffold files we wrote, never pre-existing content.
     for rel in &written {
         let result = git.run(&["add", "--", rel], Some(root))?;
@@ -308,7 +323,9 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     let store = crate::state::StateStore::from_common_dir(
         &crate::git::common_dir(root).unwrap_or_else(|_| root.join(".git")),
     );
-    let _ = store.ensure();
+    store
+        .ensure()
+        .map_err(|e| format!("failed to ensure state store: {e}"))?;
     let token_id = store
         .create_token(
             "init",
@@ -340,11 +357,15 @@ pub fn apply_init(root: &Path, identity_name: &str, identity_email: &str) -> Res
     let result = crate::platform::run(&argv, &options);
     if result.code != Some(0) {
         // Consume token on failure (fail closed).
-        let _ = store.consume_token(&token_id);
+        store
+            .consume_token(&token_id)
+            .map_err(|e| format!("failed to consume init token: {e}"))?;
         return Err(format!("git commit failed: {}", result.stderr));
     }
     // Consume token on success.
-    let _ = store.consume_token(&token_id);
+    store
+        .consume_token(&token_id)
+        .map_err(|e| format!("failed to consume init token: {e}"))?;
     Ok(json!({ "root": root, "written": written, "skipped": skipped, "committed": true }))
 }
 
@@ -376,6 +397,29 @@ pub fn policy_content() -> String {
     include_str!("../../../assets/templates/policy.toml").to_string()
 }
 
+pub fn header_0bsd() -> String {
+    include_str!("../../../assets/templates/header-0bsd.txt").to_string()
+}
+
+pub fn header_0bsd_c() -> String {
+    include_str!("../../../assets/templates/header-0bsd-c.txt").to_string()
+}
+
+pub fn header_0bsd_hash() -> String {
+    include_str!("../../../assets/templates/header-0bsd-hash.txt").to_string()
+}
+
+pub fn header_0bsd_html() -> String {
+    include_str!("../../../assets/templates/header-0bsd-html.txt").to_string()
+}
+
+pub fn license_content_for(license: &str) -> String {
+    match license.to_lowercase().as_str() {
+        "mit" => include_str!("../../../assets/templates/license-mit.txt").to_string(),
+        _ => include_str!("../../../assets/templates/license-mit.txt").to_string(),
+    }
+}
+
 pub fn project_list_path() -> PathBuf {
     if let Ok(home) = std::env::var("REPOWILL_HOME") {
         return PathBuf::from(home).join("projects.json");
@@ -392,7 +436,7 @@ pub fn project_list() -> Result<Value, String> {
         return Ok(json!({ "projects": [] }));
     }
     let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let value: Value = serde_json::from_str(&text).unwrap_or(json!({ "projects": [] }));
+    let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     Ok(value)
 }
 
@@ -411,8 +455,8 @@ pub fn project_add(root: &Path) -> Result<Value, String> {
     } else {
         list["projects"] = json!([entry]);
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&list).unwrap())
-        .map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&list).map_err(|e| e.to_string())?;
+    crate::platform::fs::atomic_write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
     Ok(list)
 }
 
@@ -420,6 +464,7 @@ pub fn apply_update(
     root: &Path,
     identity_name: &str,
     identity_email: &str,
+    project_license: &str,
 ) -> Result<Value, String> {
     if !root.join(".git").exists() {
         return Err("not a git repository".to_string());
@@ -435,7 +480,12 @@ pub fn apply_update(
                 .collect()
         })
         .unwrap_or_default();
-    let files = plan_files(root, &stacks);
+    let pl = if project_license.is_empty() {
+        "MIT"
+    } else {
+        project_license
+    };
+    let files = plan_files_with(root, &stacks, pl);
     let mut updated = Vec::new();
     for (rel, content) in &files {
         let path = root.join(rel);
@@ -518,49 +568,79 @@ pub fn unified_diff(old: &str, new: &str, path: &str) -> String {
             }
         }
     }
-    // Walk the LCS to produce hunks.
-    let mut i = 0;
-    let mut j = 0;
-    type Hunk = (usize, usize, Vec<(char, String)>);
-    let mut hunks: Vec<Hunk> = Vec::new();
-    let mut current: Vec<(char, String)> = Vec::new();
-    let mut old_start = 1;
-    let mut new_start = 1;
+    // Build edit script.
+    let mut script: Vec<(usize, usize, char)> = Vec::new();
+    let (mut i, mut j) = (0, 0);
     while i < m || j < n {
         if i < m && j < n && old_lines[i] == new_lines[j] {
-            current.push((' ', old_lines[i].to_string()));
+            script.push((i, j, ' '));
             i += 1;
             j += 1;
         } else if j < n && (i == m || dp[i][j + 1] >= dp[i + 1][j]) {
-            if current.is_empty() {
-                new_start = j + 1;
-                old_start = i + 1;
-            }
-            current.push(('+', new_lines[j].to_string()));
+            script.push((i, j, '+'));
             j += 1;
         } else if i < m {
-            if current.is_empty() {
-                new_start = j + 1;
-                old_start = i + 1;
-            }
-            current.push(('-', old_lines[i].to_string()));
+            script.push((i, j, '-'));
             i += 1;
         } else {
             break;
         }
     }
-    if !current.is_empty() {
-        hunks.push((old_start, new_start, current));
+
+    // Group changes into hunks with 3 lines of context.
+    const CONTEXT: usize = 3;
+    let mut changes: Vec<usize> = Vec::new();
+    for (idx, &(_, _, op)) in script.iter().enumerate() {
+        if op != ' ' {
+            changes.push(idx);
+        }
     }
-    for (os, ns, lines) in &hunks {
-        let old_count = lines.iter().filter(|(c, _)| *c != '+').count();
-        let new_count = lines.iter().filter(|(c, _)| *c != '-').count();
+    if changes.is_empty() {
+        return out;
+    }
+
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    let mut start = changes[0].saturating_sub(CONTEXT);
+    let mut end = (changes[0] + CONTEXT + 1).min(script.len());
+    for &c in &changes[1..] {
+        let c_start = c.saturating_sub(CONTEXT);
+        let c_end = (c + CONTEXT + 1).min(script.len());
+        if c_start <= end {
+            end = c_end;
+        } else {
+            ranges.push((start, end));
+            start = c_start;
+            end = c_end;
+        }
+    }
+    ranges.push((start, end));
+
+    for (hs, he) in ranges {
+        let slice = &script[hs..he];
+        let old_start = slice
+            .iter()
+            .find(|(_, _, op)| *op != '+')
+            .map(|(oi, _, _)| *oi + 1)
+            .unwrap_or(1);
+        let new_start = slice
+            .iter()
+            .find(|(_, _, op)| *op != '-')
+            .map(|(_, nj, _)| *nj + 1)
+            .unwrap_or(1);
+        let old_count = slice.iter().filter(|(_, _, op)| *op != '+').count();
+        let new_count = slice.iter().filter(|(_, _, op)| *op != '-').count();
         out.push_str(&format!(
             "@@ -{},{} +{},{} @@\n",
-            os, old_count, ns, new_count
+            old_start, old_count, new_start, new_count
         ));
-        for (c, line) in lines {
-            out.push_str(&format!("{c}{line}\n"));
+        for &(oi, nj, op) in slice {
+            let line = match op {
+                ' ' => old_lines[oi],
+                '-' => old_lines[oi],
+                '+' => new_lines[nj],
+                _ => "",
+            };
+            out.push_str(&format!("{op}{line}\n"));
         }
     }
     out
@@ -577,8 +657,8 @@ pub fn project_forget(root: &Path) -> Result<Value, String> {
             p.get("path").and_then(Value::as_str) != Some(root.to_string_lossy().as_ref())
         });
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&list).unwrap())
-        .map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&list).map_err(|e| e.to_string())?;
+    crate::platform::fs::atomic_write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
     Ok(list)
 }
 
@@ -615,14 +695,14 @@ mod tests {
     #[test]
     fn apply_init_requires_identity() {
         let dir = tempdir().unwrap();
-        let result = apply_init(dir.path(), "", "");
+        let result = apply_init(dir.path(), "", "", false, "MIT");
         assert!(result.is_err());
     }
 
     #[test]
     fn apply_init_creates_repo_and_files() {
         let dir = tempdir().unwrap();
-        let result = apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        let result = apply_init(dir.path(), "Test", "test@example.com", false, "MIT").unwrap();
         assert!(dir.path().join(".git").exists());
         assert!(dir.path().join("README.md").exists());
         assert!(dir.path().join(".gitattributes").exists());
@@ -632,19 +712,19 @@ mod tests {
     #[test]
     fn apply_init_idempotent() {
         let dir = tempdir().unwrap();
-        apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        apply_init(dir.path(), "Test", "test@example.com", false, "MIT").unwrap();
         // Re-running init on an existing repo should not commit on main.
-        let result = apply_init(dir.path(), "Test", "test@example.com");
+        let result = apply_init(dir.path(), "Test", "test@example.com", false, "MIT");
         assert!(result.is_err());
     }
 
     #[test]
     fn apply_update_adds_missing_files() {
         let dir = tempdir().unwrap();
-        apply_init(dir.path(), "Test", "test@example.com").unwrap();
+        apply_init(dir.path(), "Test", "test@example.com", false, "MIT").unwrap();
         // remove a file
         std::fs::remove_file(dir.path().join("README.md")).unwrap();
-        let _result = apply_update(dir.path(), "Test", "test@example.com").unwrap();
+        let _result = apply_update(dir.path(), "Test", "test@example.com", "MIT").unwrap();
         // File is restored (content matches scaffold).
         assert!(dir.path().join("README.md").exists());
     }

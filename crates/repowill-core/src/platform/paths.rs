@@ -57,6 +57,23 @@ pub fn paths_equal(a: &Path, b: &Path) -> bool {
     }
 }
 
+/// Enable long paths on Windows via git config (no-op on other platforms).
+pub fn enable_long_paths(root: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let git = crate::git::Git::new()?;
+        let result = git.run(&["config", "core.longpaths", "true"], Some(root))?;
+        if result.code != Some(0) {
+            return Err(format!(
+                "git config core.longpaths failed: {}",
+                result.stderr
+            ));
+        }
+    }
+    let _ = root;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

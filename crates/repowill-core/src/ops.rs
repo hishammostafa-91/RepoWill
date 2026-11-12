@@ -589,7 +589,11 @@ fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
                 .collect()
         })
         .unwrap_or_default();
-    let files = project::plan_files(&root, &stacks);
+    let project_license = params
+        .get("project_license")
+        .and_then(Value::as_str)
+        .unwrap_or("MIT");
+    let files = project::plan_files_with(&root, &stacks, project_license);
     let file_list: Vec<Value> = files
         .iter()
         .map(|(rel, content)| {
@@ -633,7 +637,11 @@ fn project_init(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
             details: None,
         });
     }
-    project::apply_init(&root, name, email).map_err(policy_error)
+    let project_license = params
+        .get("project_license")
+        .and_then(Value::as_str)
+        .unwrap_or("MIT");
+    project::apply_init(&root, name, email, resume, project_license).map_err(policy_error)
 }
 
 fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
@@ -676,7 +684,11 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
                 .collect()
         })
         .unwrap_or_default();
-    let files = project::plan_files(&root, &stacks);
+    let project_license = params
+        .get("project_license")
+        .and_then(Value::as_str)
+        .unwrap_or("MIT");
+    let files = project::plan_files_with(&root, &stacks, project_license);
     let mut written = 0usize;
     for (rel, content) in &files {
         let path = root.join(rel);
@@ -721,7 +733,11 @@ fn project_update(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let email = params.get("email").and_then(Value::as_str).unwrap_or("");
-    project::apply_update(&root, name, email).map_err(policy_error)
+    let project_license = params
+        .get("project_license")
+        .and_then(Value::as_str)
+        .unwrap_or("MIT");
+    project::apply_update(&root, name, email, project_license).map_err(policy_error)
 }
 
 fn project_list(ctx: &OpContext) -> Result<Value, RwError> {

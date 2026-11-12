@@ -219,6 +219,46 @@ fn update_on_fresh_project() {
     assert!(path.join("README.md").exists());
 }
 
+// AT-004: stack-aware gitignore
+#[test]
+fn init_rust_stack_gitignore() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("proj");
+    fs::write(dir.path().join("Cargo.toml"), "[package]\nname=\"x\"\n").unwrap();
+    // Create the project dir with Cargo.toml so detection finds rust.
+    fs::create_dir_all(&path).unwrap();
+    fs::write(path.join("Cargo.toml"), "[package]\nname=\"x\"\n").unwrap();
+    Command::cargo_bin("repowill")
+        .unwrap()
+        .arg("init")
+        .arg(&path)
+        .arg("--name")
+        .arg("Test")
+        .arg("--email")
+        .arg("test@example.com")
+        .assert()
+        .success();
+    let gitignore = fs::read_to_string(path.join(".gitignore")).unwrap();
+    assert!(gitignore.contains("target/"));
+}
+
+// AT-002: dry-run shows diff with hunks
+#[test]
+fn init_dry_run_shows_diff() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("proj");
+    let out = Command::cargo_bin("repowill")
+        .unwrap()
+        .arg("init")
+        .arg(&path)
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("@@"));
+    assert!(stdout.contains("\"diff\""));
+}
+
 // AT-009: answers file init
 #[test]
 fn answers_file_init() {

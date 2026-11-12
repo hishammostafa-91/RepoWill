@@ -410,7 +410,8 @@ fn run(cli: Cli) -> i32 {
             let files = parsed.get("files").cloned();
             let stacks = parsed.get("stacks").cloned();
             let agents = parsed.get("agents").cloned();
-            let _ = (description, preset, project_license, files, stacks, agents);
+            let _ = (description, preset, files, stacks, agents);
+            // Keep project_license for params.
             let e = parsed
                 .get("identity")
                 .and_then(|v| v.get("email"))
@@ -422,9 +423,9 @@ fn run(cli: Cli) -> i32 {
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
                 .unwrap_or_else(|| "new".to_string());
-            (p, n, e, m)
+            (p, n, e, m, project_license)
         } else {
-            (path, name, email, "new".to_string())
+            (path, name, email, "new".to_string(), None)
         };
         let (path, name, email) = (
             mode_from_answers.0,
@@ -432,6 +433,7 @@ fn run(cli: Cli) -> i32 {
             mode_from_answers.2,
         );
         let mode = mode_from_answers.3;
+        let project_license = mode_from_answers.4;
         if dry_run {
             let params = json!({ "path": path });
             let ctx = OpContext::new(repo_root.clone());
@@ -498,7 +500,8 @@ fn run(cli: Cli) -> i32 {
             "path": path,
             "name": name.unwrap_or_default(),
             "email": email.unwrap_or_default(),
-            "resume": resume
+            "resume": resume,
+            "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string())
         });
         let ctx = OpContext::new(repo_root.clone());
         let op = if mode == "adopt" {
@@ -547,7 +550,7 @@ fn run(cli: Cli) -> i32 {
                         println!(
                             "{}",
                             serde_json::to_string_pretty(
-                                &json!({"ok":true,"op":"project.init","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
+                                &json!({"ok":true,"op":"project.plan","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                             )
                             .unwrap_or_default()
                         );
@@ -605,7 +608,7 @@ fn run(cli: Cli) -> i32 {
                     println!(
                         "{}",
                         serde_json::to_string_pretty(
-                            &json!({"ok":true,"op":"project.update","data":data})
+                            &json!({"ok":true,"op":"project.update","repowill":env!("CARGO_PKG_VERSION"),"api":1,"data":data,"warnings":[],"error":null})
                         )
                         .unwrap_or_default()
                     );
