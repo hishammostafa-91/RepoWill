@@ -579,16 +579,25 @@ fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         .or_else(|| ctx.repo_root.clone())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let detection = project::detect(&root);
-    let stacks: Vec<String> = detection
-        .get("stacks")
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
+    let stacks: Vec<String> =
+        if let Some(override_stacks) = params.get("stacks").and_then(Value::as_array) {
+            override_stacks
+                .iter()
                 .filter_map(Value::as_str)
                 .map(str::to_string)
                 .collect()
-        })
-        .unwrap_or_default();
+        } else {
+            detection
+                .get("stacks")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
     let project_license = params
         .get("project_license")
         .and_then(Value::as_str)
@@ -677,16 +686,25 @@ fn project_adopt(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
         });
     }
     // Only write files that don't exist yet
-    let stacks: Vec<String> = detection
-        .get("stacks")
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
+    let stacks: Vec<String> =
+        if let Some(override_stacks) = params.get("stacks").and_then(Value::as_array) {
+            override_stacks
+                .iter()
                 .filter_map(Value::as_str)
                 .map(str::to_string)
                 .collect()
-        })
-        .unwrap_or_default();
+        } else {
+            detection
+                .get("stacks")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
     let project_license = params
         .get("project_license")
         .and_then(Value::as_str)
