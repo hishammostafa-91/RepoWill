@@ -622,7 +622,14 @@ fn project_plan(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {
             })
         })
         .collect();
-    Ok(json!({ "root": root, "detection": detection, "files": file_list }))
+    Ok(json!({
+        "root": root,
+        "detection": detection,
+        "files": file_list,
+        "description": params.get("description").cloned().unwrap_or(Value::Null),
+        "preset": params.get("preset").cloned().unwrap_or(Value::Null),
+        "agents": params.get("agents").cloned().unwrap_or(Value::Null)
+    }))
 }
 
 fn project_init(ctx: &OpContext, params: &Value) -> Result<Value, RwError> {

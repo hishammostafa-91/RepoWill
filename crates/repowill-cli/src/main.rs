@@ -441,6 +441,7 @@ fn run(cli: Cli) -> i32 {
                 m,
                 project_license,
                 files,
+                stacks.clone(),
                 description.clone(),
                 preset.clone(),
                 agents.clone(),
@@ -456,6 +457,7 @@ fn run(cli: Cli) -> i32 {
                 None,
                 None,
                 None,
+                None,
             )
         };
         let (path, name, email) = (
@@ -466,9 +468,10 @@ fn run(cli: Cli) -> i32 {
         let mode = mode_from_answers.3;
         let project_license = mode_from_answers.4;
         let files_filter = mode_from_answers.5;
-        let description = mode_from_answers.6;
-        let preset = mode_from_answers.7;
-        let agents = mode_from_answers.8;
+        let stacks = mode_from_answers.6;
+        let description = mode_from_answers.7;
+        let preset = mode_from_answers.8;
+        let agents = mode_from_answers.9;
         if dry_run {
             let params = json!({ "path": path, "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string()), "files": files_filter });
             let ctx = OpContext::new(repo_root.clone());
@@ -552,6 +555,7 @@ fn run(cli: Cli) -> i32 {
             "resume": resume,
             "project_license": project_license.clone().unwrap_or_else(|| "MIT".to_string()),
             "files": files_filter,
+            "stacks": stacks.clone(),
             "description": description.clone(),
             "preset": preset.clone(),
             "agents": agents.clone()
