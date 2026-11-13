@@ -58,3 +58,9 @@ only if files were added.
 ## `repowill projects list|add|forget`
 
 Manage the global projects registry.
+
+## Security note
+
+The one-time init token uses xpected_new = None because the commit OID is not computable
+before the commit is created. The guard checks the token exists and is unconsumed; the OID
+check is skipped for the initial commit only.
